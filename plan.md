@@ -293,7 +293,7 @@ User action → Server processes → AI agents decide sequentially → State upd
 - [x] Phases confirmed
 - [x] Constraints confirmed
 - [x] Phase 1 — Data Models & Initial World State
-- [ ] Phase 2 — Backend Engine (Core Logic)
+- [x] Phase 2 — Backend Engine (Core Logic)
 - [ ] Phase 3 — Featherless AI Integration
 - [ ] Phase 4 — Bright Data Integration
 - [ ] Phase 5 — Map UI (React + SVG)
