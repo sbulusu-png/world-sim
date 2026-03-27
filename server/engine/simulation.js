@@ -5,6 +5,7 @@ const { appendMemory, buildMemoryEntry, distributeMemory } = require("./memory")
 const { createEvent } = require("../models/event");
 const { ACTIONS } = require("../data/actions");
 const { processTurn } = require("./turn");
+const { validateWorldState } = require("./state-validator");
 
 // --- Configuration ---
 const CYCLE_INTERVAL_MS = 7000; // 1 cycle = 7 seconds
@@ -16,6 +17,10 @@ const MAX_AI_CALLS_PER_CYCLE = 1; // Limit Featherless calls for performance
 let intervalId = null;
 let running = false;
 let processing = false; // guard against overlapping cycles
+
+// --- Duplicate event prevention: track last action per nation ---
+const lastNationAction = {}; // { nationId: { type, target, cycle } }
+let cycleCount = 0;
 
 // --- Time system ---
 function initTime() {
@@ -68,63 +73,69 @@ function pickAutonomousAction(nation, allIds) {
   const lowestTrust = trustEntries.reduce((a, b) => (a[1] < b[1] ? a : b));
   const highestTrust = trustEntries.reduce((a, b) => (a[1] > b[1] ? a : b));
 
+  let action = null;
+
   // Decision matrix based on personality + trust
   switch (nation.personality) {
     case "aggressive":
       if (lowestTrust[1] < -30) {
-        return { type: ACTIONS.ATTACK, target: lowestTrust[0],
+        action = { type: ACTIONS.ATTACK, target: lowestTrust[0],
           reason: `${nation.name} launches an attack on distrusted ${lowestTrust[0]}.` };
-      }
-      if (lowestTrust[1] < -10) {
-        return { type: ACTIONS.SANCTION, target: lowestTrust[0],
+      } else if (lowestTrust[1] < -10) {
+        action = { type: ACTIONS.SANCTION, target: lowestTrust[0],
           reason: `${nation.name} imposes sanctions on ${lowestTrust[0]}.` };
       }
       break;
 
     case "diplomatic":
       if (highestTrust[1] > 20 && !nation.alliances.includes(highestTrust[0])) {
-        return { type: ACTIONS.ALLY, target: highestTrust[0],
+        action = { type: ACTIONS.ALLY, target: highestTrust[0],
           reason: `${nation.name} proposes an alliance with ${highestTrust[0]}.` };
-      }
-      if (highestTrust[1] > 0) {
-        return { type: ACTIONS.TRADE, target: highestTrust[0],
+      } else if (highestTrust[1] > 0) {
+        action = { type: ACTIONS.TRADE, target: highestTrust[0],
           reason: `${nation.name} initiates trade with ${highestTrust[0]}.` };
       }
       break;
 
     case "defensive":
-      // Defensive nations only act when threatened
       if (lowestTrust[1] < -40 && nation.status === "war") {
-        return { type: ACTIONS.SANCTION, target: lowestTrust[0],
+        action = { type: ACTIONS.SANCTION, target: lowestTrust[0],
           reason: `${nation.name} retaliates with sanctions during wartime.` };
-      }
-      if (highestTrust[1] > 10 && !nation.alliances.includes(highestTrust[0])) {
-        return { type: ACTIONS.SUPPORT, target: highestTrust[0],
+      } else if (highestTrust[1] > 10 && !nation.alliances.includes(highestTrust[0])) {
+        action = { type: ACTIONS.SUPPORT, target: highestTrust[0],
           reason: `${nation.name} seeks a supportive relationship with ${highestTrust[0]}.` };
       }
       break;
 
     case "opportunistic":
       if (lowestTrust[1] < -20) {
-        return { type: ACTIONS.SANCTION, target: lowestTrust[0],
+        action = { type: ACTIONS.SANCTION, target: lowestTrust[0],
           reason: `${nation.name} exploits weakness in ${lowestTrust[0]}.` };
-      }
-      if (highestTrust[1] > 15) {
-        return { type: ACTIONS.TRADE, target: highestTrust[0],
+      } else if (highestTrust[1] > 15) {
+        action = { type: ACTIONS.TRADE, target: highestTrust[0],
           reason: `${nation.name} pursues profitable trade with ${highestTrust[0]}.` };
       }
       break;
 
     case "isolationist":
-      // Rarely acts — only if severely threatened
       if (lowestTrust[1] < -50) {
-        return { type: ACTIONS.SANCTION, target: lowestTrust[0],
+        action = { type: ACTIONS.SANCTION, target: lowestTrust[0],
           reason: `${nation.name} breaks isolation to sanction existential threat ${lowestTrust[0]}.` };
       }
       break;
   }
 
-  return null; // No action this cycle
+  if (!action) return null;
+
+  // --- Duplicate event prevention: skip if same action+target as last cycle ---
+  const last = lastNationAction[nation.id];
+  if (last && last.type === action.type && last.target === action.target && cycleCount - last.cycle <= 1) {
+    return null; // Cooldown — don't repeat the same action consecutively
+  }
+
+  // Record this action for cooldown tracking
+  lastNationAction[nation.id] = { type: action.type, target: action.target, cycle: cycleCount };
+  return action;
 }
 
 // --- Core simulation cycle ---
@@ -132,6 +143,7 @@ function pickAutonomousAction(nation, allIds) {
 async function runCycle() {
   if (processing) return; // Skip if previous cycle still running
   processing = true;
+  cycleCount++;
 
   try {
     const world = getWorld();
@@ -207,6 +219,9 @@ async function runCycle() {
     else if (statuses.includes("tension")) world.config.phase = "tension";
     else world.config.phase = "peace";
 
+    // --- Phase 9: Validate state after every cycle ---
+    validateWorldState(world);
+
   } catch (err) {
     console.error("[SimLoop] Cycle error:", err.message);
   } finally {
@@ -241,6 +256,9 @@ function isSimulationRunning() {
 
 function resetSimulationTime() {
   pauseSimulation();
+  // Clear cooldown tracking
+  for (const key of Object.keys(lastNationAction)) delete lastNationAction[key];
+  cycleCount = 0;
   const world = getWorld();
   world.config.time = initTime();
 }

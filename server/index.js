@@ -11,6 +11,8 @@ const { fetchBrightDataEvent, clearBrightDataCache } = require("./data/bright-da
 const { transformEvent, getRandomFallbackEvent, buildWorldEventContext } = require("./data/event-transformer");
 const { processTurn } = require("./engine/turn");
 const { startSimulation, pauseSimulation, isSimulationRunning, resetSimulationTime, initTime } = require("./engine/simulation");
+const { validateWorldState } = require("./engine/state-validator");
+const { errorHandler } = require("./middleware/error-handler");
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -129,6 +131,9 @@ app.post("/api/event", async (req, res) => {
   // Advance turn AFTER reactions have been applied
   world.config.turn += 1;
 
+  // --- Phase 9: Validate state after every mutation ---
+  validateWorldState(world);
+
   res.json({
     event,
     trustChanges,
@@ -169,6 +174,14 @@ app.get("/api/world-event", async (req, res) => {
 // Health check
 app.get("/api/health", (req, res) => {
   res.json({ status: "ok", turn: getWorld().config.turn });
+});
+
+// --- Phase 9: Global error handler (must be last middleware) ---
+app.use(errorHandler);
+
+// Catch unhandled promise rejections to prevent silent crashes
+process.on("unhandledRejection", (err) => {
+  console.error("[Process] Unhandled rejection:", err?.message || err);
 });
 
 app.listen(PORT, () => {

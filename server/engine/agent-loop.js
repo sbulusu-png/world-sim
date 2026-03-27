@@ -28,42 +28,47 @@ async function runAgentReactions(event, world) {
     // Skip the nation that triggered the event
     if (nation.id === event.source) continue;
 
-    // --- Step 1: Rule-based decision ---
-    const ruleDecision = fallbackDecision(nation, event, allIds);
+    try {
+      // --- Step 1: Rule-based decision ---
+      const ruleDecision = fallbackDecision(nation, event, allIds);
 
-    // --- Step 2: Optional AI reasoning (only for non-neutral, up to MAX_AI_CALLS) ---
-    let reasoning = ruleDecision.reasoning;
-    if (ruleDecision.decision !== ACTIONS.NEUTRAL && aiCallCount < MAX_AI_CALLS) {
-      try {
-        const prompt = buildPrompt(nation, event, world.config.worldEvent || null);
-        const aiRaw = await callFeatherless(SYSTEM_PROMPT, prompt);
-        if (aiRaw) {
-          const parsed = parseDecision(aiRaw, allIds);
-          if (parsed && parsed.reasoning) {
-            // Use AI reasoning text but keep the rule-based decision
-            reasoning = parsed.reasoning;
+      // --- Step 2: Optional AI reasoning (only for non-neutral, up to MAX_AI_CALLS) ---
+      let reasoning = ruleDecision.reasoning;
+      if (ruleDecision.decision !== ACTIONS.NEUTRAL && aiCallCount < MAX_AI_CALLS) {
+        try {
+          const prompt = buildPrompt(nation, event, world.config.worldEvent || null);
+          const aiRaw = await callFeatherless(SYSTEM_PROMPT, prompt);
+          if (aiRaw) {
+            const parsed = parseDecision(aiRaw, allIds);
+            if (parsed && parsed.reasoning) {
+              // Use AI reasoning text but keep the rule-based decision
+              reasoning = parsed.reasoning;
+            }
           }
+          aiCallCount++;
+        } catch (err) {
+          console.error(`[AgentLoop] AI call failed for ${nation.id}:`, err.message);
+          // Keep rule-based reasoning — no problem
         }
-        aiCallCount++;
-      } catch (err) {
-        console.error(`[AgentLoop] AI call failed for ${nation.id}:`, err.message);
-        // Keep rule-based reasoning — no problem
       }
+
+      const reaction = {
+        nation: nation.id,
+        nationName: nation.name,
+        decision: ruleDecision.decision,
+        target: ruleDecision.target,
+        reasoning,
+        turn: event.turn,
+      };
+
+      // --- Step 3: Apply effects ---
+      applyReactionEffects(world, nation, reaction, event.turn);
+
+      reactions.push(reaction);
+    } catch (err) {
+      console.error(`[AgentLoop] Reaction failed for ${nation.id}:`, err.message);
+      // Skip this nation's reaction — don't crash the whole loop
     }
-
-    const reaction = {
-      nation: nation.id,
-      nationName: nation.name,
-      decision: ruleDecision.decision,
-      target: ruleDecision.target,
-      reasoning,
-      turn: event.turn,
-    };
-
-    // --- Step 3: Apply effects ---
-    applyReactionEffects(world, nation, reaction, event.turn);
-
-    reactions.push(reaction);
   }
 
   return reactions;

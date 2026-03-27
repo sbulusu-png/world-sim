@@ -1,11 +1,21 @@
 const BASE = '/api'
 
 async function request(path, options = {}) {
-  const res = await fetch(`${BASE}${path}`, {
-    headers: { 'Content-Type': 'application/json' },
-    ...options,
-  })
-  const data = await res.json()
+  let res
+  try {
+    res = await fetch(`${BASE}${path}`, {
+      headers: { 'Content-Type': 'application/json' },
+      ...options,
+    })
+  } catch (err) {
+    throw new Error('Network error — is the server running?')
+  }
+  let data
+  try {
+    data = await res.json()
+  } catch {
+    throw new Error(`Server returned non-JSON response (HTTP ${res.status})`)
+  }
   if (!res.ok) {
     throw new Error(data.error || `HTTP ${res.status}`)
   }

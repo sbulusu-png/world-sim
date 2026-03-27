@@ -24,8 +24,9 @@ const STATUS_COLORS = {
 }
 
 function TrustBar({ label, score }) {
-  const pct   = Math.max(0, Math.min(100, ((score + 100) / 200) * 100))
-  const color = score >= 30 ? '#34d399' : score >= 0 ? '#fbbf24' : '#f87171'
+  const safeScore = typeof score === 'number' && !isNaN(score) ? score : 0
+  const pct   = Math.max(0, Math.min(100, ((safeScore + 100) / 200) * 100))
+  const color = safeScore >= 30 ? '#34d399' : safeScore >= 0 ? '#fbbf24' : '#f87171'
   return (
     <div className="trust-row">
       <span className="trust-label">{label}</span>
@@ -33,7 +34,7 @@ function TrustBar({ label, score }) {
         <div className="trust-bar-fill" style={{ width: `${pct}%`, background: color }} />
       </div>
       <span className="trust-score" style={{ color }}>
-        {score > 0 ? '+' : ''}{score}
+        {safeScore > 0 ? '+' : ''}{safeScore}
       </span>
     </div>
   )
