@@ -13,7 +13,7 @@
       "id": "france",
       "name": "France",
       "personality": "diplomatic",
-      "alliances": ["germany", "italy"],
+      "alliances": [{"id": "germany", "strength": 2}, {"id": "italy", "strength": 2}],
       "trust": {
         "germany": 60,
         "uk": 40,
@@ -29,7 +29,7 @@
       "id": "germany",
       "name": "Germany",
       "personality": "diplomatic",
-      "alliances": ["france", "poland"],
+      "alliances": [{"id": "france", "strength": 2}, {"id": "poland", "strength": 2}],
       "trust": {
         "france": 60,
         "uk": 50,
@@ -77,7 +77,7 @@
       "id": "poland",
       "name": "Poland",
       "personality": "defensive",
-      "alliances": ["germany"],
+      "alliances": [{"id": "germany", "strength": 2}],
       "trust": {
         "france": 30,
         "germany": 45,
@@ -93,7 +93,7 @@
       "id": "italy",
       "name": "Italy",
       "personality": "opportunistic",
-      "alliances": ["france"],
+      "alliances": [{"id": "france", "strength": 2}],
       "trust": {
         "france": 50,
         "germany": 35,

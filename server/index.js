@@ -6,12 +6,13 @@ const { updateTrust } = require("./engine/trust");
 const { applyAllianceChanges } = require("./engine/alliances");
 const { distributeMemory } = require("./engine/memory");
 const { createEvent } = require("./models/event");
-const { VALID_ACTIONS, ACTIONS } = require("./data/actions");
+const { VALID_ACTIONS, ACTIONS, ACTION_RESOURCE_COST } = require("./data/actions");
 const { fetchBrightDataEvent, clearBrightDataCache } = require("./data/bright-data");
 const { transformEvent, getRandomFallbackEvent, buildWorldEventContext } = require("./data/event-transformer");
 const { processTurn } = require("./engine/turn");
 const { startSimulation, pauseSimulation, isSimulationRunning, resetSimulationTime, initTime } = require("./engine/simulation");
 const { validateWorldState } = require("./engine/state-validator");
+const { applyWorldEventEffects } = require("./engine/world-events");
 const { errorHandler } = require("./middleware/error-handler");
 
 const app = express();
@@ -114,6 +115,26 @@ app.post("/api/event", async (req, res) => {
     distributeMemory(world, turn, source, target, type, eventDescription);
   }
 
+  // Apply resource cost (Phase 5)
+  const srcNation = world.nations.find((n) => n.id === source);
+  if (srcNation) {
+    srcNation.resources += ACTION_RESOURCE_COST[type] || 0;
+    srcNation.resources = Math.max(0, srcNation.resources);
+  }
+  if (type === ACTIONS.TRADE && target) {
+    const tgtNation = world.nations.find((n) => n.id === target);
+    if (tgtNation) {
+      tgtNation.resources = Math.min(120, tgtNation.resources + 5);
+    }
+  }
+
+  // Apply world event trust modifiers (if an active world event exists)
+  let worldEventChanges = {};
+  if (world.config.worldEvent) {
+    const result = applyWorldEventEffects(world, world.config.worldEvent);
+    worldEventChanges = result.changes;
+  }
+
   // Log the triggering event
   world.config.eventLog.push(event);
   world.config.currentEvent = event;
@@ -137,6 +158,7 @@ app.post("/api/event", async (req, res) => {
   res.json({
     event,
     trustChanges,
+    worldEventChanges,
     turnSummary,
     world,
   });

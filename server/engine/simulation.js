@@ -1,11 +1,13 @@
 const { getWorld, getAllNationIds } = require("./world");
 const { updateTrust } = require("./trust");
-const { applyAllianceChanges } = require("./alliances");
+const { applyAllianceChanges, isAlliedWith, strengthenAlliances } = require("./alliances");
 const { appendMemory, buildMemoryEntry, distributeMemory } = require("./memory");
 const { createEvent } = require("../models/event");
-const { ACTIONS } = require("../data/actions");
+const { ACTIONS, ACTION_RESOURCE_COST } = require("../data/actions");
 const { processTurn } = require("./turn");
 const { validateWorldState } = require("./state-validator");
+const { applyWorldEventEffects } = require("./world-events");
+const { getRandomFallbackEvent } = require("../data/event-transformer");
 
 // --- Configuration ---
 const CYCLE_INTERVAL_MS = 7000; // 1 cycle = 7 seconds
@@ -52,7 +54,7 @@ function formatDate(time) {
  * Pick an autonomous action for a nation based on its trust scores,
  * alliances, and personality. Returns null if no action taken.
  */
-function pickAutonomousAction(nation, allIds) {
+function pickAutonomousAction(nation, allIds, world) {
   // Personality-weighted action probability
   const personalityBias = {
     aggressive: 0.50,
@@ -61,7 +63,19 @@ function pickAutonomousAction(nation, allIds) {
     defensive: 0.25,
     isolationist: 0.15,
   };
-  const prob = personalityBias[nation.personality] ?? ACTION_PROBABILITY;
+  let prob = personalityBias[nation.personality] ?? ACTION_PROBABILITY;
+
+  // Escalation awareness: war escalates aggression, peace encourages diplomacy
+  const phase = world.config?.phase;
+  if (phase === "war") {
+    if (nation.personality === "aggressive") prob += 0.20;
+    else if (nation.personality === "opportunistic") prob += 0.10;
+  } else if (phase === "peace") {
+    if (nation.personality === "diplomatic") prob += 0.20;
+    else if (nation.personality === "defensive") prob += 0.10;
+  }
+  prob = Math.min(prob, 0.85);
+
   if (Math.random() > prob) return null;
 
   // Gather trust data
@@ -88,7 +102,7 @@ function pickAutonomousAction(nation, allIds) {
       break;
 
     case "diplomatic":
-      if (highestTrust[1] > 20 && !nation.alliances.includes(highestTrust[0])) {
+      if (highestTrust[1] > 20 && !isAlliedWith(nation, highestTrust[0])) {
         action = { type: ACTIONS.ALLY, target: highestTrust[0],
           reason: `${nation.name} proposes an alliance with ${highestTrust[0]}.` };
       } else if (highestTrust[1] > 0) {
@@ -101,7 +115,7 @@ function pickAutonomousAction(nation, allIds) {
       if (lowestTrust[1] < -40 && nation.status === "war") {
         action = { type: ACTIONS.SANCTION, target: lowestTrust[0],
           reason: `${nation.name} retaliates with sanctions during wartime.` };
-      } else if (highestTrust[1] > 10 && !nation.alliances.includes(highestTrust[0])) {
+      } else if (highestTrust[1] > 10 && !isAlliedWith(nation, highestTrust[0])) {
         action = { type: ACTIONS.SUPPORT, target: highestTrust[0],
           reason: `${nation.name} seeks a supportive relationship with ${highestTrust[0]}.` };
       }
@@ -125,12 +139,39 @@ function pickAutonomousAction(nation, allIds) {
       break;
   }
 
+  // 15% wildcard: out-of-character action for unpredictability
+  if (Math.random() < 0.15) {
+    const wildcardMap = {
+      aggressive:    { type: ACTIONS.TRADE, target: highestTrust[0], label: "unexpectedly trades with" },
+      diplomatic:    { type: ACTIONS.SANCTION, target: lowestTrust[0], label: "surprisingly sanctions" },
+      defensive:     { type: ACTIONS.ATTACK, target: lowestTrust[0], label: "launches a surprise attack on" },
+      opportunistic: { type: ACTIONS.SUPPORT, target: highestTrust[0], label: "surprisingly supports" },
+      isolationist:  { type: ACTIONS.ALLY, target: highestTrust[0], label: "breaks isolation to ally with" },
+    };
+    const wc = wildcardMap[nation.personality];
+    if (wc) {
+      action = { type: wc.type, target: wc.target,
+        reason: `[Wildcard] ${nation.name} ${wc.label} ${wc.target}.` };
+    }
+  }
+
+  // Resource gates: economic constraints override decisions
+  if (action) {
+    if (nation.resources < 15) {
+      // Economic desperation: can only trade
+      action = { type: ACTIONS.TRADE, target: highestTrust[0],
+        reason: `${nation.name} is forced into trade by economic desperation (resources: ${nation.resources}).` };
+    } else if (nation.resources < 30 && (action.type === ACTIONS.ATTACK || action.type === ACTIONS.BETRAY)) {
+      return null; // Can't afford war
+    }
+  }
+
   if (!action) return null;
 
-  // --- Duplicate event prevention: skip if same action+target as last cycle ---
+  // --- Duplicate event prevention: skip if same action+target within 2 cycles ---
   const last = lastNationAction[nation.id];
-  if (last && last.type === action.type && last.target === action.target && cycleCount - last.cycle <= 1) {
-    return null; // Cooldown — don't repeat the same action consecutively
+  if (last && last.type === action.type && last.target === action.target && cycleCount - last.cycle <= 2) {
+    return null; // Extended cooldown — don't repeat the same action too soon
   }
 
   // Record this action for cooldown tracking
@@ -152,6 +193,31 @@ async function runCycle() {
     // Advance the clock
     advanceDay(world.config.time);
 
+    // --- World event rotation and application ---
+    // Rotate world event every 5 cycles
+    if (cycleCount % 5 === 0 || !world.config.worldEvent) {
+      world.config.worldEvent = getRandomFallbackEvent();
+      world.config.worldEventAppliedCycle = null;
+      console.log(`[SimLoop] World event rotated: ${world.config.worldEvent.summary}`);
+    }
+    // Apply world event effects every 3 cycles (if not already applied this rotation)
+    if (cycleCount % 3 === 0 && world.config.worldEvent && world.config.worldEventAppliedCycle !== cycleCount) {
+      const { changes } = applyWorldEventEffects(world, world.config.worldEvent);
+      world.config.worldEventAppliedCycle = cycleCount;
+      const changeCount = Object.keys(changes).length;
+      if (changeCount > 0) {
+        console.log(`[SimLoop] World event effects applied to ${changeCount} nations`);
+      }
+    }
+
+    // Strengthen existing alliances once per cycle (Phase 4)
+    strengthenAlliances(world);
+
+    // Passive income: +2 resources per cycle, capped at 120
+    for (const n of world.nations) {
+      n.resources = Math.min(120, (n.resources || 100) + 2);
+    }
+
     const allIds = getAllNationIds();
     const shuffled = [...world.nations].sort(() => Math.random() - 0.5);
     let actionsThisCycle = 0;
@@ -159,7 +225,7 @@ async function runCycle() {
     for (const nation of shuffled) {
       if (actionsThisCycle >= MAX_ACTIONS_PER_CYCLE) break;
 
-      const action = pickAutonomousAction(nation, allIds);
+      const action = pickAutonomousAction(nation, allIds, world);
       if (!action) continue;
 
       // Apply the autonomous action through the same pipeline as user events
@@ -196,6 +262,16 @@ async function runCycle() {
       // Memory distribution
       if (action.target) {
         distributeMemory(world, turn, nation.id, action.target, action.type, action.reason);
+      }
+
+      // Apply resource cost (Phase 5)
+      nation.resources += ACTION_RESOURCE_COST[action.type] || 0;
+      nation.resources = Math.max(0, nation.resources);
+      if (action.type === ACTIONS.TRADE && action.target) {
+        const tgtNation = world.nations.find((n) => n.id === action.target);
+        if (tgtNation) {
+          tgtNation.resources = Math.min(120, tgtNation.resources + 5);
+        }
       }
 
       // Log the event

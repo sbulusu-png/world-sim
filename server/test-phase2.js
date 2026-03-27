@@ -102,9 +102,9 @@ const poland2 = world.nations.find((n) => n.id === "poland");
 appendMemory(poland2, entry);
 assert(poland2.memory.length === 1, "memory appended");
 
-// Test cap at 10
-for (let i = 0; i < 12; i++) appendMemory(poland2, { turn: i, summary: `event ${i}` });
-assert(poland2.memory.length === 10, "memory capped at 10 entries");
+// Test cap at 20 (MAX_MEMORY was corrected from 10 to 20 to match memory.js)
+for (let i = 0; i < 22; i++) appendMemory(poland2, { turn: i, summary: `event ${i}` });
+assert(poland2.memory.length === 20, "memory capped at 20 entries");
 
 console.log("\n=== distributeMemory ===");
 world = initWorld();

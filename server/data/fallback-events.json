@@ -73,5 +73,40 @@
     "summary": "UK and France agree to joint Channel security operations and intelligence sharing",
     "category": "diplomatic",
     "relevantNations": ["uk", "france"]
+  },
+  {
+    "summary": "Russia threatens to cut remaining energy ties with European nations",
+    "category": "crisis",
+    "relevantNations": ["russia", "germany", "italy"]
+  },
+  {
+    "summary": "UK and Poland launch joint military training exercises in Baltic region",
+    "category": "military",
+    "relevantNations": ["uk", "poland"]
+  },
+  {
+    "summary": "Italy and France sign Mediterranean trade corridor agreement",
+    "category": "economic",
+    "relevantNations": ["italy", "france"]
+  },
+  {
+    "summary": "Poland hosts emergency summit on Eastern European border security",
+    "category": "diplomatic",
+    "relevantNations": ["poland", "germany", "uk"]
+  },
+  {
+    "summary": "Russia proposes bilateral non-aggression pact with Italy",
+    "category": "diplomatic",
+    "relevantNations": ["russia", "italy"]
+  },
+  {
+    "summary": "Arms race escalates as multiple nations boost weapons procurement budgets",
+    "category": "military",
+    "relevantNations": ["russia", "france", "uk"]
+  },
+  {
+    "summary": "UK announces expanded economic aid package for Eastern European allies",
+    "category": "economic",
+    "relevantNations": ["uk", "poland", "germany"]
   }
 ]

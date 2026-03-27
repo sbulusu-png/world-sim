@@ -1,5 +1,6 @@
 const { VALID_ACTIONS } = require("../data/actions");
 const { recallPatterns } = require("../engine/memory");
+const { getAlliedIds } = require("../engine/alliances");
 
 const SYSTEM_PROMPT = `You are an AI advisor for a geopolitical simulation. You represent a specific European nation and must decide how to respond to events based on your nation's personality, alliances, trust scores, and memory.
 
@@ -50,8 +51,9 @@ function buildPrompt(nation, event, worldEvent) {
   lines.push("");
 
   // Alliances
-  if (nation.alliances.length > 0) {
-    lines.push(`Your alliances: ${nation.alliances.join(", ")}`);
+  const allyIds = getAlliedIds(nation);
+  if (allyIds.length > 0) {
+    lines.push(`Your alliances: ${allyIds.join(", ")}`);
   } else {
     lines.push("You have no current alliances.");
   }
@@ -86,7 +88,8 @@ function buildPrompt(nation, event, worldEvent) {
 
   // World event context
   if (worldEvent) {
-    lines.push(`Real-world context: ${worldEvent}`);
+    const eventText = typeof worldEvent === "string" ? worldEvent : worldEvent.summary || JSON.stringify(worldEvent);
+    lines.push(`Real-world context: ${eventText}`);
     lines.push("");
   }
 

@@ -1,8 +1,44 @@
 const { ACTIONS } = require("../data/actions");
+const { recallPatterns } = require("../engine/memory");
+const { isAlliedWith } = require("../engine/alliances");
+
+// Memory-based escalation / de-escalation maps
+const ESCALATE = { [ACTIONS.NEUTRAL]: ACTIONS.SANCTION, [ACTIONS.SANCTION]: ACTIONS.ATTACK };
+const DE_ESCALATE = { [ACTIONS.ATTACK]: ACTIONS.SANCTION, [ACTIONS.SANCTION]: ACTIONS.NEUTRAL };
 
 /**
- * Pure rule-based fallback decision when AI is unavailable.
- * Uses trust scores, alliances, and personality to decide.
+ * Apply memory-driven escalation or de-escalation to a base decision.
+ * 3+ hostile memories from sourceId → escalate; 3+ friendly → de-escalate.
+ */
+function applyMemoryModifiers(result, nation, sourceId) {
+  if (!sourceId) return result;
+  const patterns = recallPatterns(nation, sourceId);
+
+  if (patterns.hostileCount >= 3 && ESCALATE[result.decision]) {
+    return {
+      ...result,
+      decision: ESCALATE[result.decision],
+      target: result.target || sourceId,
+      reasoning: result.reasoning + ` [Escalated — ${sourceId} has ${patterns.hostileCount} hostile acts in memory.]`,
+    };
+  }
+
+  if (patterns.friendlyCount >= 3 && DE_ESCALATE[result.decision]) {
+    const deescalated = DE_ESCALATE[result.decision];
+    return {
+      ...result,
+      decision: deescalated,
+      target: deescalated === ACTIONS.NEUTRAL ? null : result.target,
+      reasoning: result.reasoning + ` [De-escalated — ${sourceId} has ${patterns.friendlyCount} friendly acts in memory.]`,
+    };
+  }
+
+  return result;
+}
+
+/**
+ * Rule-based fallback decision when AI is unavailable.
+ * Uses trust scores, alliances, personality, AND memory patterns.
  *
  * @param {object} nation - The nation making the decision
  * @param {object} event - The event to respond to
@@ -10,13 +46,21 @@ const { ACTIONS } = require("../data/actions");
  * @returns {{ decision: string, target: string|null, reasoning: string }}
  */
 function fallbackDecision(nation, event, allNationIds) {
+  const base = _baseDecision(nation, event, allNationIds);
+  return applyMemoryModifiers(base, nation, event.source);
+}
+
+/**
+ * Core rule-based logic (pre-memory-modification).
+ */
+function _baseDecision(nation, event, allNationIds) {
   const sourceId = event.source;
   const targetId = event.target;
   const actionType = event.type;
 
   const trustOfSource = nation.trust[sourceId] || 0;
-  const isAlliedWithSource = nation.alliances.includes(sourceId);
-  const isAlliedWithTarget = targetId ? nation.alliances.includes(targetId) : false;
+  const isAlliedWithSource = isAlliedWith(nation, sourceId);
+  const isAlliedWithTarget = targetId ? isAlliedWith(nation, targetId) : false;
 
   // If this nation IS the target, respond based on action type
   if (targetId === nation.id) {

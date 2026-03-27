@@ -1,5 +1,6 @@
 const { ACTION_TRUST_DELTAS, ACTIONS } = require("../data/actions");
 const { PERSONALITIES } = require("../models/nation");
+const { isAlliedWith, getAllianceStrength } = require("./alliances");
 
 // Personality multipliers for how strongly each nation reacts to each action type
 const PERSONALITY_BIAS = {
@@ -85,13 +86,15 @@ function updateTrust(world, sourceId, targetId, action) {
   changes[sourceId] = { [targetId]: sourceDelta };
 
   // --- Observer effect: third-party nations adjust trust of source ---
+  // Alliance strength scales the observer reaction: strength * 15% (1=15%, 2=30%, 3=45%)
   for (const nation of world.nations) {
     if (nation.id === sourceId || nation.id === targetId) continue;
 
     let observerDelta = 0;
-    if (nation.alliances.includes(targetId)) {
-      // Allied with the target: mirrors target's reaction at 30% strength
-      observerDelta = Math.round(baseDelta * targetBias * 0.3);
+    if (isAlliedWith(nation, targetId)) {
+      const strength = getAllianceStrength(nation, targetId);
+      const scaleFactor = strength * 0.15;
+      observerDelta = Math.round(baseDelta * targetBias * scaleFactor);
     }
 
     if (observerDelta !== 0) {

@@ -1,6 +1,6 @@
 const { VALID_ACTIONS } = require("../data/actions");
 
-const MAX_MEMORY = 10;
+const MAX_MEMORY = 20;
 const TRUST_MIN = -100;
 const TRUST_MAX = 100;
 const MAX_EVENT_LOG = 200;
@@ -53,11 +53,19 @@ function validateWorldState(world) {
       issues.push(`${nation.id}: missing trust object — initialized empty`);
     }
 
-    // --- Alliances: remove invalid IDs, self-references, and duplicates ---
+    // --- Alliances: validate { id, strength } objects ---
     if (Array.isArray(nation.alliances)) {
-      const before = nation.alliances.length;
       const seen = new Set();
-      nation.alliances = nation.alliances.filter((id) => {
+      nation.alliances = nation.alliances.filter((alliance) => {
+        // Migrate legacy string format to object format
+        if (typeof alliance === "string") {
+          alliance = { id: alliance, strength: 1 };
+        }
+        const id = alliance.id;
+        if (!id || typeof id !== "string") {
+          issues.push(`${nation.id}: removed alliance with invalid id`);
+          return false;
+        }
         if (id === nation.id) {
           issues.push(`${nation.id}: removed self-alliance`);
           return false;
@@ -70,9 +78,19 @@ function validateWorldState(world) {
           issues.push(`${nation.id}: removed duplicate alliance '${id}'`);
           return false;
         }
+        // Ensure strength is valid (1-3)
+        if (typeof alliance.strength !== "number" || alliance.strength < 1) {
+          alliance.strength = 1;
+        } else if (alliance.strength > 3) {
+          alliance.strength = 3;
+        }
         seen.add(id);
         return true;
       });
+      // Ensure all surviving entries are objects (in case of legacy migration)
+      nation.alliances = nation.alliances.map((a) =>
+        typeof a === "string" ? { id: a, strength: 1 } : a
+      );
     } else {
       nation.alliances = [];
       issues.push(`${nation.id}: missing alliances array — initialized empty`);
@@ -104,6 +122,9 @@ function validateWorldState(world) {
     } else if (nation.resources < 0) {
       nation.resources = 0;
       issues.push(`${nation.id}: negative resources — clamped to 0`);
+    } else if (nation.resources > 120) {
+      nation.resources = 120;
+      issues.push(`${nation.id}: resources exceeded cap — clamped to 120`);
     }
   }
 

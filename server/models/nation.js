@@ -20,7 +20,7 @@ function createNation({
     id,
     name,
     personality,
-    alliances: [...alliances],
+    alliances: alliances.map((a) => ({ ...a })),
     trust: { ...trust },
     memory: [...memory],
     resources,
@@ -31,7 +31,7 @@ function createNation({
 function cloneNation(nation) {
   return {
     ...nation,
-    alliances: [...nation.alliances],
+    alliances: nation.alliances.map((a) => ({ ...a })),
     trust: { ...nation.trust },
     memory: nation.memory.map((m) => ({ ...m })),
   };

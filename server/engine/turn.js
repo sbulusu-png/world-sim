@@ -37,6 +37,7 @@ async function processTurn(event, world) {
       decision: r.decision,
       target: r.target,
       reasoning: r.reasoning,
+      source: r.source || "fallback",
     })),
     phase: world.config.phase,
   };

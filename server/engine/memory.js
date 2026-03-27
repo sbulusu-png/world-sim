@@ -1,3 +1,5 @@
+const { isAlliedWith } = require("./alliances");
+
 const MAX_MEMORY = 20;
 
 const HOSTILE_ACTIONS = ["attack", "betray", "sanction"];
@@ -38,7 +40,7 @@ function distributeMemory(world, turn, sourceId, targetId, action, description) 
   for (const nation of world.nations) {
     const isDirectlyInvolved = nation.id === sourceId || nation.id === targetId;
     const isAlliedWithInvolved =
-      nation.alliances.includes(sourceId) || nation.alliances.includes(targetId);
+      isAlliedWith(nation, sourceId) || isAlliedWith(nation, targetId);
 
     if (isDirectlyInvolved || isAlliedWithInvolved) {
       appendMemory(nation, entry);
