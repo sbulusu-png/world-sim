@@ -299,6 +299,6 @@ User action → Server processes → AI agents decide sequentially → State upd
 - [x] Phase 5 — Map UI (React + SVG)
 - [x] Phase 6 — Connect Frontend + Backend
 - [x] Phase 7 — Game Loop & Turn System
-- [ ] Phase 8 — Interaction Layer (Full Round-Trip)
+- [x] Phase 8 — Interaction Layer (Full Round-Trip)
 - [ ] Phase 9 — Stabilize & Edge Cases
 - [ ] Phase 10 — Demo Prep & Polish

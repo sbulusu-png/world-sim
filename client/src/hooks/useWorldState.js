@@ -1,5 +1,11 @@
-import { useState, useCallback } from 'react'
-import { getWorldState, triggerEvent as apiTriggerEvent, resetWorld as apiResetWorld } from '../services/api'
+import { useState, useCallback, useEffect, useRef } from 'react'
+import {
+  getWorldState,
+  triggerEvent as apiTriggerEvent,
+  resetWorld as apiResetWorld,
+  startSimulation as apiStart,
+  pauseSimulation as apiPause,
+} from '../services/api'
 
 /**
  * Normalizes the nations array from the backend into a lookup map.
@@ -19,6 +25,8 @@ export function useWorldState() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const [turnSummary, setTurnSummary] = useState(null)
+  const [simRunning, setSimRunning] = useState(false)
+  const pollRef = useRef(null)
 
   const refreshState = useCallback(async () => {
     setLoading(true)
@@ -30,6 +38,16 @@ export function useWorldState() {
       setError(err.message)
     } finally {
       setLoading(false)
+    }
+  }, [])
+
+  // Silent refresh — no loading spinner, for polling
+  const silentRefresh = useCallback(async () => {
+    try {
+      const raw = await getWorldState()
+      setWorldState(normalizeWorld(raw))
+    } catch {
+      // Silently ignore poll errors
     }
   }, [])
 
@@ -66,6 +84,7 @@ export function useWorldState() {
         setWorldState(normalizeWorld(result.world))
       }
       setTurnSummary(null)
+      setSimRunning(false)
     } catch (err) {
       setError(err.message)
     } finally {
@@ -73,5 +92,34 @@ export function useWorldState() {
     }
   }, [])
 
-  return { worldState, loading, error, turnSummary, refreshState, triggerEvent, resetSimulation }
+  const startSim = useCallback(async () => {
+    try {
+      const result = await apiStart()
+      setSimRunning(result.running)
+    } catch (err) {
+      setError(err.message)
+    }
+  }, [])
+
+  const pauseSim = useCallback(async () => {
+    try {
+      const result = await apiPause()
+      setSimRunning(result.running)
+    } catch (err) {
+      setError(err.message)
+    }
+  }, [])
+
+  // Poll for state updates while simulation is running (every 2s)
+  useEffect(() => {
+    if (simRunning) {
+      pollRef.current = setInterval(silentRefresh, 2000)
+    } else {
+      clearInterval(pollRef.current)
+      pollRef.current = null
+    }
+    return () => clearInterval(pollRef.current)
+  }, [simRunning, silentRefresh])
+
+  return { worldState, loading, error, turnSummary, simRunning, refreshState, triggerEvent, resetSimulation, startSim, pauseSim }
 }

@@ -26,3 +26,15 @@ export function triggerEvent(payload) {
 export function resetWorld() {
   return request('/reset', { method: 'POST' })
 }
+
+export function startSimulation() {
+  return request('/simulation/start', { method: 'POST' })
+}
+
+export function pauseSimulation() {
+  return request('/simulation/pause', { method: 'POST' })
+}
+
+export function getSimulationStatus() {
+  return request('/simulation/status')
+}

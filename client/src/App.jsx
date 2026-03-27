@@ -7,10 +7,15 @@ import './App.css'
 
 function App() {
   const [selectedNation, setSelectedNation] = useState(null)
-  const { worldState, loading, error, turnSummary, refreshState, triggerEvent, resetSimulation } = useWorldState()
+  const { worldState, loading, error, turnSummary, simRunning, refreshState, triggerEvent, resetSimulation, startSim, pauseSim } = useWorldState()
 
   // Load world state on mount
   useEffect(() => { refreshState() }, [refreshState])
+
+  const time = worldState?.config?.time
+  const months = ["", "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+                  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+  const dateStr = time ? `${time.day} ${months[time.month]} ${time.year}` : '—'
 
   return (
     <div className="app">
@@ -21,6 +26,15 @@ function App() {
           <span className="turn-badge">
             Turn {worldState?.config?.turn ?? '—'}
           </span>
+          <span className="date-badge">
+            {dateStr}
+          </span>
+          <button
+            className={simRunning ? 'sim-btn sim-btn--pause' : 'sim-btn sim-btn--start'}
+            onClick={simRunning ? pauseSim : startSim}
+          >
+            {simRunning ? '⏸ Pause' : '▶ Start'}
+          </button>
           <button
             className="reset-btn"
             onClick={resetSimulation}

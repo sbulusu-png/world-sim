@@ -10,6 +10,7 @@ const { VALID_ACTIONS, ACTIONS } = require("./data/actions");
 const { fetchBrightDataEvent, clearBrightDataCache } = require("./data/bright-data");
 const { transformEvent, getRandomFallbackEvent, buildWorldEventContext } = require("./data/event-transformer");
 const { processTurn } = require("./engine/turn");
+const { startSimulation, pauseSimulation, isSimulationRunning, resetSimulationTime, initTime } = require("./engine/simulation");
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -19,6 +20,8 @@ app.use(express.json());
 
 // Initialize world on server start
 initWorld();
+// Seed the time system
+getWorld().config.time = initTime();
 
 // GET /api/state — Return current world state
 app.get("/api/state", (req, res) => {
@@ -27,9 +30,28 @@ app.get("/api/state", (req, res) => {
 
 // POST /api/reset — Reset to initial state
 app.post("/api/reset", (req, res) => {
+  resetSimulationTime();
   clearBrightDataCache();
   const world = resetWorld();
+  world.config.time = initTime();
   res.json({ message: "World reset to initial state", world });
+});
+
+// POST /api/simulation/start — Start the autonomous simulation loop
+app.post("/api/simulation/start", (req, res) => {
+  const result = startSimulation();
+  res.json(result);
+});
+
+// POST /api/simulation/pause — Pause the autonomous simulation loop
+app.post("/api/simulation/pause", (req, res) => {
+  const result = pauseSimulation();
+  res.json(result);
+});
+
+// GET /api/simulation/status — Check if simulation is running
+app.get("/api/simulation/status", (req, res) => {
+  res.json({ running: isSimulationRunning() });
 });
 
 // POST /api/event — Trigger an event (async for AI agent reactions)
