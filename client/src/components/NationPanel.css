@@ -490,3 +490,64 @@
   border-radius: var(--radius);
   padding: 2px 6px;
 }
+
+/* ── AI Strategic Analysis ── */
+.ai-analysis {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ai-analysis-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ai-source-badge {
+  font-family: var(--font-mono);
+  font-size: 0.58rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  padding: 2px 6px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.ai-source--ai {
+  background: rgba(68, 136, 255, 0.15);
+  color: #4488ff;
+  border: 1px solid rgba(68, 136, 255, 0.4);
+}
+
+.ai-source--rule {
+  background: rgba(107, 123, 141, 0.15);
+  color: #6b7b8d;
+  border: 1px solid rgba(107, 123, 141, 0.4);
+}
+
+.ai-source--self {
+  background: rgba(245, 158, 11, 0.15);
+  color: #f59e0b;
+  border: 1px solid rgba(245, 158, 11, 0.4);
+}
+
+.ai-decision {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  color: var(--text-primary);
+  letter-spacing: 0.04em;
+  font-weight: 600;
+}
+
+.ai-reasoning {
+  font-family: var(--font-ui);
+  font-size: 0.72rem;
+  color: var(--text-secondary, #8899aa);
+  line-height: 1.5;
+  margin: 0;
+  padding: 8px;
+  background: rgba(0, 0, 0, 0.2);
+  border-left: 2px solid var(--border-accent, #1b3a5a);
+  border-radius: 0 2px 2px 0;
+}

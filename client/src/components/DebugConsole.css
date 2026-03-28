@@ -1,0 +1,99 @@
+.debug-console {
+  position: fixed;
+  bottom: 12px;
+  left: 12px;
+  z-index: 9999;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 11px;
+  color: #c0c8d0;
+  background: rgba(10, 14, 20, 0.95);
+  border: 1px solid #1a2a3a;
+  border-radius: 6px;
+  backdrop-filter: blur(8px);
+  max-width: 280px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+}
+
+.debug-console--collapsed {
+  max-width: auto;
+}
+
+.debug-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: none;
+  border: none;
+  color: #6b7b8d;
+  font-family: inherit;
+  font-size: 10px;
+  letter-spacing: 1px;
+  cursor: pointer;
+  width: 100%;
+  text-align: left;
+}
+
+.debug-toggle:hover {
+  color: #c0c8d0;
+}
+
+.debug-status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.debug-dot--ok {
+  background: #00ff88;
+  box-shadow: 0 0 4px #00ff88;
+}
+
+.debug-dot--warn {
+  background: #ff4757;
+  box-shadow: 0 0 4px #ff4757;
+  animation: pulse-warn 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse-warn {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+.debug-body {
+  padding: 0 12px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.debug-section {
+  border-top: 1px solid #1a2a3a;
+  padding-top: 6px;
+}
+
+.debug-label {
+  color: #4a6a8a;
+  font-size: 9px;
+  letter-spacing: 1.5px;
+  margin-bottom: 4px;
+}
+
+.debug-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 1px 0;
+}
+
+.debug-ok {
+  color: #00ff88;
+}
+
+.debug-warn {
+  color: #ffc312;
+}
+
+.debug-err {
+  color: #ff4757;
+}

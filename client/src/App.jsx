@@ -3,6 +3,7 @@ import TopBar from './components/TopBar'
 import CommandPanel from './components/CommandPanel'
 import MapView from './components/MapView'
 import SidePanel from './components/SidePanel'
+import DebugConsole from './components/DebugConsole'
 import ErrorBoundary from './components/ErrorBoundary'
 import { useWorldState } from './hooks/useWorldState'
 import './App.css'
@@ -10,7 +11,7 @@ import './App.css'
 function App() {
   const [selectedNation, setSelectedNation] = useState(null)
   const [targetNation, setTargetNation] = useState(null)
-  const { worldState, loading, error, turnSummary, simRunning, refreshState, triggerEvent, resetSimulation, startSim, pauseSim } = useWorldState()
+  const { worldState, loading, error, turnSummary, simRunning, debugStats, refreshState, triggerEvent, resetSimulation, startSim, pauseSim } = useWorldState()
 
   useEffect(() => { refreshState() }, [refreshState])
 
@@ -82,6 +83,8 @@ function App() {
           loading={loading}
         />
       </div>
+
+      <DebugConsole debugStats={debugStats} turnSummary={turnSummary} />
     </div>
   )
 }

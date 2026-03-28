@@ -32,22 +32,33 @@ function logCreativeDecision(nation, decision, target) {
  * @returns {{ decision: string, target: string|null, reasoning: string } | null}
  */
 function parseDecision(rawText, validTargets) {
-  if (!rawText || typeof rawText !== "string") return null;
+  if (!rawText || typeof rawText !== "string") {
+    console.warn(`🔍 [Parser] REJECTED: rawText is ${rawText === null ? 'null' : typeof rawText}`);
+    return null;
+  }
 
   try {
     // Try to extract JSON from the response (AI may wrap it in markdown or extra text)
     const jsonMatch = rawText.match(/\{[\s\S]*?\}/);
-    if (!jsonMatch) return null;
+    if (!jsonMatch) {
+      console.warn(`🔍 [Parser] REJECTED: No JSON found in: ${rawText.substring(0, 150)}`);
+      return null;
+    }
 
+    console.log(`🔍 [Parser] Extracted JSON: ${jsonMatch[0].substring(0, 200)}`);
     const parsed = JSON.parse(jsonMatch[0]);
 
     // Validate decision field
     const decision = (parsed.decision || "").toLowerCase().trim();
-    if (!VALID_ACTIONS.includes(decision)) return null;
+    if (!VALID_ACTIONS.includes(decision)) {
+      console.warn(`🔍 [Parser] REJECTED: invalid decision "${parsed.decision}" — valid: ${VALID_ACTIONS.join(',')}`);
+      return null;
+    }
 
     // Validate target field (optional for some actions)
     let target = (parsed.target || "").toLowerCase().trim() || null;
     if (target && !validTargets.includes(target)) {
+      console.warn(`🔍 [Parser] Target "${target}" not in validTargets [${validTargets.join(',')}] — clearing target`);
       target = null; // Invalid target — clear it, don't fail entirely
     }
 
@@ -56,8 +67,10 @@ function parseDecision(rawText, validTargets) {
       ? parsed.reasoning.slice(0, 500)
       : "No reasoning provided.";
 
+    console.log(`🔍 [Parser] SUCCESS: decision=${decision} target=${target} reasoning=${reasoning.substring(0, 80)}`);
     return { decision, target, reasoning };
-  } catch {
+  } catch (e) {
+    console.warn(`🔍 [Parser] JSON PARSE ERROR: ${e.message} | raw: ${rawText.substring(0, 150)}`);
     return null;
   }
 }

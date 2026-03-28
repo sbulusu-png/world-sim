@@ -3,6 +3,17 @@ const MODEL = "meta-llama/Meta-Llama-3.1-8B-Instruct";
 const MAX_RETRIES = 2;
 const TIMEOUT_MS = 15000;
 
+// --- DEBUG COUNTERS (exported for /api/state) ---
+let totalApiCalls = 0;
+let totalApiSuccesses = 0;
+let totalApiFailures = 0;
+let lastApiCallTime = null;
+let lastApiError = null;
+
+function getApiStats() {
+  return { totalApiCalls, totalApiSuccesses, totalApiFailures, lastApiCallTime, lastApiError, hasApiKey: !!process.env.FEATHERLESS_API_KEY };
+}
+
 /**
  * Call the Featherless AI API with retry logic.
  * API key is read from environment — never hardcoded.
@@ -13,10 +24,17 @@ const TIMEOUT_MS = 15000;
  */
 async function callFeatherless(systemPrompt, userPrompt) {
   const apiKey = process.env.FEATHERLESS_API_KEY;
+  console.log(`\n🔑 [Featherless] API KEY STATUS: ${apiKey ? `FOUND (${apiKey.substring(0, 8)}...${apiKey.slice(-4)})` : "❌ MISSING"}`);
   if (!apiKey) {
-    console.error("[Featherless] FEATHERLESS_API_KEY not set — skipping AI call");
+    console.error("❌ [Featherless] AI DISABLED — NO API KEY. All decisions will use FALLBACK.");
+    totalApiFailures++;
+    lastApiError = "NO_API_KEY";
     return null;
   }
+  totalApiCalls++;
+  lastApiCallTime = new Date().toISOString();
+  console.log(`🧠 [Featherless] API CALL #${totalApiCalls} START | model=${MODEL} | prompt_len=${userPrompt.length}`);
+  console.log(`🧠 [Featherless] PROMPT PREVIEW: ${userPrompt.substring(0, 200)}...`);
 
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
     try {
@@ -52,10 +70,14 @@ async function callFeatherless(systemPrompt, userPrompt) {
       const data = await response.json();
       const content = data?.choices?.[0]?.message?.content;
       if (!content) {
-        console.error(`[Featherless] Empty response (attempt ${attempt}/${MAX_RETRIES})`);
+        console.error(`🧠 [Featherless] EMPTY RESPONSE (attempt ${attempt}/${MAX_RETRIES})`);
+        console.log(`🧠 [Featherless] RAW API DATA:`, JSON.stringify(data).substring(0, 500));
         continue;
       }
 
+      totalApiSuccesses++;
+      console.log(`🧠 [Featherless] RAW AI RESPONSE (attempt ${attempt}):`, content.trim().substring(0, 300));
+      console.log(`🧠 [Featherless] API CALL SUCCESS | total_calls=${totalApiCalls} | successes=${totalApiSuccesses} | failures=${totalApiFailures}`);
       return content.trim();
     } catch (err) {
       const reason = err.name === "AbortError" ? "timeout" : err.message;
@@ -63,8 +85,10 @@ async function callFeatherless(systemPrompt, userPrompt) {
     }
   }
 
-  console.error("[Featherless] All retries exhausted — returning null");
+  totalApiFailures++;
+  lastApiError = `ALL_RETRIES_EXHAUSTED_AT_${new Date().toISOString()}`;
+  console.error(`❌ [Featherless] ALL RETRIES EXHAUSTED — returning null | total_failures=${totalApiFailures}`);
   return null;
 }
 
-module.exports = { callFeatherless };
+module.exports = { callFeatherless, getApiStats };

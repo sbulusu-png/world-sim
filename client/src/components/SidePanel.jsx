@@ -271,24 +271,32 @@ function SidePanel({ selectedNation, targetNation, worldState, turnSummary, onAc
           </div>
         </div>
 
-        {/* AI Reactions */}
-        {turnSummary && turnSummary.reactions && turnSummary.reactions.length > 0 && (
-          <div className="dossier-section">
-            <div className="dossier-field-label">AI_REACTIONS (TURN {turnSummary.turn})</div>
-            <div className="system-log">
-              {turnSummary.reactions.map((r, i) => (
-                <div key={i} className="log-entry">
-                  <span className="log-prefix" style={{ color: r.source === 'ai' ? '#4488ff' : '#6b7b8d' }}>
-                    {r.source === 'ai' ? '▶' : '■'}
-                  </span>
-                  <span className="log-text">
-                    {r.nationName}: {r.decision?.toUpperCase()}{r.target ? ` → ${worldState?.nationMap?.[r.target]?.name ?? r.target}` : ''}
-                  </span>
+        {/* AI Strategic Analysis — selected nation only */}
+        {(() => {
+          console.log('[DEBUG SidePanel] selectedNation:', selectedNation, '| turnSummary:', turnSummary ? `T${turnSummary.turn} with ${turnSummary.reactions?.length} reactions` : 'NULL')
+          const reaction = turnSummary?.reactions?.find(r => r.nation === selectedNation)
+          console.log('[DEBUG SidePanel] matched reaction:', reaction ? `${reaction.nation}|${reaction.source}|${reaction.decision}` : 'NO MATCH', '| reaction IDs:', turnSummary?.reactions?.map(r => r.nation))
+          return (
+            <div className="dossier-section">
+              <div className="dossier-field-label">AI_STRATEGIC_ANALYSIS{turnSummary ? ` (T${turnSummary.turn})` : ''}</div>
+              {reaction ? (
+                <div className="ai-analysis">
+                  <div className="ai-analysis-header">
+                    <span className={`ai-source-badge ${reaction.source === 'ai' ? 'ai-source--ai' : reaction.source === 'self' ? 'ai-source--self' : 'ai-source--rule'}`}>
+                      {reaction.source === 'ai' ? 'AI' : reaction.source === 'self' ? 'SELF' : 'RULE'}
+                    </span>
+                    <span className="ai-decision">
+                      {reaction.decision?.toUpperCase()}{reaction.target ? ` → ${worldState?.nationMap?.[reaction.target]?.name ?? reaction.target}` : ''}
+                    </span>
+                  </div>
+                  <p className="ai-reasoning">{reaction.reasoning}</p>
                 </div>
-              ))}
+              ) : (
+                <p className="dossier-no-data">Awaiting strategic decision...</p>
+              )}
             </div>
-          </div>
-        )}
+          )
+        })()}
 
         {/* Memory Log */}
         {nation.memory && nation.memory.length > 0 && (

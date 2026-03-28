@@ -24,9 +24,32 @@ async function runAgentReactions(event, world) {
   const allIds = world.nations.map((n) => n.id);
   let aiCallCount = 0;
 
+  console.log(`\n⚡ [AgentLoop] ========================================`);
+  console.log(`⚡ [AgentLoop] RUNNING AGENT REACTIONS`);
+  console.log(`⚡ [AgentLoop] event=${event.type} | source=${event.source} | target=${event.target || 'none'} | turn=${event.turn}`);
+  console.log(`⚡ [AgentLoop] nations=[${allIds.join(', ')}] | MAX_AI_CALLS=${MAX_AI_CALLS}`);
+  console.log(`⚡ [AgentLoop] ========================================`);
+
+  // Add self-reasoning for the source nation (so UI always has an entry)
+  const sourceNation = world.nations.find((n) => n.id === event.source);
+  if (sourceNation) {
+    console.log(`👤 [AgentLoop] SELF-REASONING for source nation: ${sourceNation.id}`);
+    reactions.push({
+      nation: sourceNation.id,
+      nationName: sourceNation.name,
+      decision: event.type,
+      target: event.target,
+      reasoning: `${sourceNation.name} initiated ${event.type} against ${event.target || 'no specific target'} based on its ${sourceNation.personality} disposition and current strategic conditions.`,
+      source: "self",
+      turn: event.turn,
+    });
+  }
+
   for (const nation of world.nations) {
     // Skip the nation that triggered the event
     if (nation.id === event.source) continue;
+
+    console.log(`\n👤 [AgentLoop] PROCESSING NATION: ${nation.id} (${nation.personality}) | ai_calls_so_far=${aiCallCount}/${MAX_AI_CALLS}`);
 
     try {
       // --- Step 1: AI-first decision (with timeout guard) ---
@@ -64,15 +87,28 @@ async function runAgentReactions(event, world) {
         turn: event.turn,
       };
 
+      console.log(`✅ [AgentLoop] REACTION: ${nation.id} → decision=${reaction.decision} target=${reaction.target} source=${reaction.source}`);
+
       // --- Step 2: Apply effects ---
       applyReactionEffects(world, nation, reaction, event.turn);
 
       reactions.push(reaction);
     } catch (err) {
-      console.error(`[AgentLoop] Reaction failed for ${nation.id}:`, err.message);
+      console.error(`❌ [AgentLoop] Reaction FAILED for ${nation.id}:`, err.message);
       // Skip this nation's reaction — don't crash the whole loop
     }
   }
+
+  // Summary
+  const aiCount = reactions.filter(r => r.source === 'ai').length;
+  const fbCount = reactions.filter(r => r.source === 'fallback').length;
+  const selfCount = reactions.filter(r => r.source === 'self').length;
+  console.log(`\n⚡ [AgentLoop] ========== REACTION SUMMARY ==========`);
+  console.log(`⚡ [AgentLoop] total=${reactions.length} | AI=${aiCount} | FALLBACK=${fbCount} | SELF=${selfCount}`);
+  reactions.forEach(r => {
+    console.log(`  ${r.source === 'ai' ? '🤖' : r.source === 'self' ? '👤' : '📋'} ${r.nation}: ${r.decision} → ${r.target || 'none'} [${r.source}]`);
+  });
+  console.log(`⚡ [AgentLoop] ====================================\n`);
 
   return reactions;
 }

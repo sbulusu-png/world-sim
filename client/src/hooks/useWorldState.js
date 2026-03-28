@@ -26,6 +26,7 @@ export function useWorldState() {
   const [error, setError] = useState(null)
   const [turnSummary, setTurnSummary] = useState(null)
   const [simRunning, setSimRunning] = useState(false)
+  const [debugStats, setDebugStats] = useState(null)
   const pollRef = useRef(null)
 
   const refreshState = useCallback(async () => {
@@ -33,7 +34,15 @@ export function useWorldState() {
     setError(null)
     try {
       const raw = await getWorldState()
+      console.log('[DEBUG refreshState] raw.lastTurnSummary:', raw.lastTurnSummary ? `PRESENT (turn ${raw.lastTurnSummary.turn}, ${raw.lastTurnSummary.reactions?.length} reactions)` : 'NULL')
+      if (raw.debug) {
+        console.log('[DEBUG refreshState] AI stats:', JSON.stringify(raw.debug))
+        setDebugStats(raw.debug)
+      }
       setWorldState(normalizeWorld(raw))
+      if (raw.lastTurnSummary) {
+        setTurnSummary(raw.lastTurnSummary)
+      }
     } catch (err) {
       setError(err.message)
     } finally {
@@ -45,7 +54,14 @@ export function useWorldState() {
   const silentRefresh = useCallback(async () => {
     try {
       const raw = await getWorldState()
+      console.log('[DEBUG silentRefresh] raw.lastTurnSummary:', raw.lastTurnSummary ? `PRESENT (turn ${raw.lastTurnSummary.turn}, ${raw.lastTurnSummary.reactions?.length} reactions)` : 'NULL')
+      if (raw.debug) {
+        setDebugStats(raw.debug)
+      }
       setWorldState(normalizeWorld(raw))
+      if (raw.lastTurnSummary) {
+        setTurnSummary(raw.lastTurnSummary)
+      }
     } catch {
       // Silently ignore poll errors
     }
@@ -121,5 +137,5 @@ export function useWorldState() {
     return () => clearInterval(pollRef.current)
   }, [simRunning, silentRefresh])
 
-  return { worldState, loading, error, turnSummary, simRunning, refreshState, triggerEvent, resetSimulation, startSim, pauseSim }
+  return { worldState, loading, error, turnSummary, simRunning, debugStats, refreshState, triggerEvent, resetSimulation, startSim, pauseSim }
 }

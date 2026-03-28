@@ -46,8 +46,11 @@ function applyMemoryModifiers(result, nation, sourceId) {
  * @returns {{ decision: string, target: string|null, reasoning: string }}
  */
 function fallbackDecision(nation, event, allNationIds) {
+  console.warn(`⚠️ [Fallback] RULE-BASED decision for ${nation.id} | event=${event.type} by ${event.source} → ${event.target || 'none'}`);
   const base = _baseDecision(nation, event, allNationIds);
-  return applyMemoryModifiers(base, nation, event.source);
+  const result = applyMemoryModifiers(base, nation, event.source);
+  console.warn(`⚠️ [Fallback] RESULT for ${nation.id}: decision=${result.decision} target=${result.target} | reasoning=${result.reasoning.substring(0, 100)}`);
+  return result;
 }
 
 /**

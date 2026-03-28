@@ -14,6 +14,7 @@ const { startSimulation, pauseSimulation, isSimulationRunning, resetSimulationTi
 const { validateWorldState } = require("./engine/state-validator");
 const { applyWorldEventEffects } = require("./engine/world-events");
 const { errorHandler } = require("./middleware/error-handler");
+const { getDecisionStats } = require("./ai/index");
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -44,6 +45,8 @@ app.get("/api/state", (req, res) => {
       }
       return { ...n, patterns };
     }),
+    lastTurnSummary: world.config.lastTurnSummary || null,
+    debug: getDecisionStats(),
   };
   res.json(enriched);
 });
@@ -171,6 +174,11 @@ app.post("/api/event", async (req, res) => {
 
   // --- Phase 9: Validate state after every mutation ---
   validateWorldState(world);
+
+  // Store in world.config so /api/state can also return it
+  if (turnSummary) {
+    world.config.lastTurnSummary = turnSummary;
+  }
 
   res.json({
     event,

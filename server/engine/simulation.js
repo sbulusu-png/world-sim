@@ -8,7 +8,7 @@ const { processTurn } = require("./turn");
 const { validateWorldState } = require("./state-validator");
 const { applyWorldEventEffects } = require("./world-events");
 const { getRandomFallbackEvent } = require("../data/event-transformer");
-const { getAutonomousDecision } = require("../ai/index");
+const { getAutonomousDecision, getDecisionStats } = require("../ai/index");
 
 // --- Configuration ---
 const CYCLE_INTERVAL_MS = 7000; // 1 cycle = 7 seconds
@@ -278,6 +278,12 @@ async function runCycle() {
     const world = getWorld();
     if (!world.config.time) world.config.time = initTime();
 
+    console.log(`\n🔁 [SimLoop] ════════════════════════════════════════`);
+    console.log(`🔁 [SimLoop] SIMULATION TICK #${cycleCount}`);
+    console.log(`🔁 [SimLoop] turn=${world.config.turn} | phase=${world.config.phase} | time=${formatDate(world.config.time)}`);
+    console.log(`🔁 [SimLoop] worldEvent=${world.config.worldEvent?.summary || 'none'}`);
+    console.log(`🔁 [SimLoop] ════════════════════════════════════════`);
+
     // Advance the clock
     advanceDay(world.config.time);
 
@@ -315,6 +321,8 @@ async function runCycle() {
     const shuffled = [...world.nations].sort(() => Math.random() - 0.5);
     let actionsThisCycle = 0;
     let aiAutoCallsThisCycle = 0;
+    let aiSuccessThisCycle = 0;
+    let fallbackThisCycle = 0;
 
     for (const nation of shuffled) {
       if (actionsThisCycle >= MAX_ACTIONS_PER_CYCLE) break;
@@ -339,6 +347,7 @@ async function runCycle() {
         }
         if (Math.random() <= Math.min(prob, 0.85)) {
           try {
+            console.log(`🌍 [SimLoop] AI autonomous attempt for ${nation.id} (prob=${prob.toFixed(2)})`);
             const aiAction = await Promise.race([
               getAutonomousDecision(nation, allIds, world),
               new Promise((_, reject) =>
@@ -348,6 +357,8 @@ async function runCycle() {
             aiAutoCallsThisCycle++;
 
             if (aiAction && aiAction.type && aiAction.target) {
+              console.log(`🌍 [SimLoop] AI autonomous SUCCESS for ${nation.id}: ${aiAction.type} → ${aiAction.target} [source=${aiAction.source || 'ai'}]`);
+              aiSuccessThisCycle++;
               // Validate AI action against resource gates
               if (nation.resources < 15) {
                 // Override: forced trade
@@ -368,6 +379,10 @@ async function runCycle() {
       // Fallback to rule-based if AI didn't produce an action
       if (!action) {
         action = pickAutonomousAction(nation, allIds, world);
+        if (action) {
+          fallbackThisCycle++;
+          console.log(`📋 [SimLoop] FALLBACK autonomous for ${nation.id}: ${action.type} → ${action.target}`);
+        }
       }
 
       if (!action) continue;
@@ -444,7 +459,11 @@ async function runCycle() {
 
       // Run Phase 7 agent reactions (limited AI calls for performance)
       try {
-        await processTurn(event, world);
+        const turnResult = await processTurn(event, world);
+        // Store latest turnSummary so /api/state can return it
+        if (turnResult.turnSummary) {
+          world.config.lastTurnSummary = turnResult.turnSummary;
+        }
       } catch (err) {
         console.error("[SimLoop] Reaction loop failed:", err.message);
       }
@@ -464,6 +483,30 @@ async function runCycle() {
 
     // --- Phase 9: Validate state after every cycle ---
     validateWorldState(world);
+
+    // Cycle summary
+    console.log(`\n🔁 [SimLoop] ══════ CYCLE #${cycleCount} SUMMARY ══════`);
+    console.log(`🔁 [SimLoop] actions=${actionsThisCycle} | ai_auto_attempts=${aiAutoCallsThisCycle} | ai_successes=${aiSuccessThisCycle} | fallbacks=${fallbackThisCycle}`);
+    console.log(`🔁 [SimLoop] turn_after=${world.config.turn} | phase=${world.config.phase} | hasLastTurnSummary=${!!world.config.lastTurnSummary}`);
+    if (world.config.lastTurnSummary) {
+      const rcts = world.config.lastTurnSummary.reactions || [];
+      const aiR = rcts.filter(r => r.source === 'ai').length;
+      const fbR = rcts.filter(r => r.source === 'fallback').length;
+      console.log(`🔁 [SimLoop] lastTurnSummary: ${rcts.length} reactions (AI=${aiR}, FALLBACK=${fbR})`);
+    }
+    console.log(`🔁 [SimLoop] ════════════════════════════════\n`);
+
+    // HARD ASSERTION: If 3+ cycles have passed and AI has never succeeded, something is wrong
+    if (cycleCount >= 3) {
+      const stats = getDecisionStats();
+      if (stats.totalApiCalls === 0) {
+        console.error(`🚨🚨🚨 [ASSERTION FAILED] After ${cycleCount} cycles, totalApiCalls === 0. AI IS NOT BEING CALLED AT ALL!`);
+        console.error(`🚨 Check: FEATHERLESS_API_KEY=${stats.hasApiKey ? 'present' : 'MISSING'}`);
+      } else if (stats.totalApiSuccesses === 0) {
+        console.error(`🚨🚨🚨 [ASSERTION FAILED] After ${cycleCount} cycles, ${stats.totalApiCalls} API calls but 0 successes. AI is failing every time!`);
+        console.error(`🚨 Last error: ${stats.lastApiError || 'unknown'}`);
+      }
+    }
 
   } catch (err) {
     console.error("[SimLoop] Cycle error:", err.message);
