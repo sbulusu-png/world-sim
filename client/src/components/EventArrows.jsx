@@ -65,8 +65,9 @@ function EventArrows({ events }) {
 
         return (
           <g key={evt.id}>
-            {/* Arrow line + label — fade in with stagger */}
-            <g className="arrow-fade-in" style={{ animationDelay: `${idx * 0.35}s` }}>
+            {/* Arrow line + label — fade in, then fade out before expiry */}
+            <g className={`arrow-fade-in${evt.fading ? ' arrow-fading' : ''}`}
+               style={{ animationDelay: evt.fading ? '0s' : `${idx * 0.35}s` }}>
               <line
                 x1={coords.x1} y1={coords.y1}
                 x2={coords.x2} y2={coords.y2}

@@ -3,9 +3,18 @@
   animation: arrow-appear 0.6s ease-out forwards;
 }
 
+.arrow-fading {
+  animation: arrow-disappear 0.8s ease-out forwards !important;
+}
+
 @keyframes arrow-appear {
   from { opacity: 0; }
   to   { opacity: 1; }
+}
+
+@keyframes arrow-disappear {
+  from { opacity: 1; }
+  to   { opacity: 0; }
 }
 
 .target-pulse {

@@ -1,8 +1,10 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import NationRegion from './NationRegion'
 import EventArrows from './EventArrows'
 import { NATIONS, DUMMY_EVENTS, NATION_CENTERS } from '../data/worldData'
 import './MapView.css'
+
+const ARROW_LIFETIME_MS = 4000
 
 function getRelationship(perspectiveId, nationId, worldState, targetId) {
   if (nationId === targetId && targetId !== perspectiveId) return 'target'
@@ -19,17 +21,54 @@ function getRelationship(perspectiveId, nationId, worldState, targetId) {
 function MapView({ selectedNation, targetNation, onNationClick, worldState }) {
   const [zoom, setZoom] = useState(1)
   const [mouseCoords, setMouseCoords] = useState({ lat: '52.5200', lng: '13.4050' })
+  const [visibleArrows, setVisibleArrows] = useState([])
+  const seenEventsRef = useRef(new Set())
 
+  // Track new events from the log and auto-expire them after ARROW_LIFETIME_MS
   const liveLog = worldState?.config?.eventLog
-  const arrowEvents = liveLog && liveLog.length > 0
-    ? liveLog.slice(-5).map((e, i) => ({
-        id: e.turn ?? i,
+  useEffect(() => {
+    if (!liveLog || liveLog.length === 0) return
+
+    const newArrows = []
+    liveLog.slice(-8).forEach((e, i) => {
+      const key = `${e.turn}-${e.source}-${e.target}-${e.type}`
+      if (seenEventsRef.current.has(key)) return
+      if (!e.source || !e.target || !NATION_CENTERS[e.source] || !NATION_CENTERS[e.target]) return
+      seenEventsRef.current.add(key)
+      newArrows.push({
+        id: key,
         type: e.type,
         attacker: e.source,
         target: e.target,
         label: e.description?.substring(0, 30) ?? e.type,
         time: `T${e.turn ?? i}`,
-      })).filter(e => e.attacker && e.target && NATION_CENTERS[e.attacker] && NATION_CENTERS[e.target])
+        createdAt: Date.now(),
+      })
+    })
+
+    if (newArrows.length > 0) {
+      setVisibleArrows(prev => [...prev, ...newArrows])
+    }
+  }, [liveLog])
+
+  // Cleanup expired arrows
+  useEffect(() => {
+    if (visibleArrows.length === 0) return
+    const now = Date.now()
+    const nextExpiry = visibleArrows.reduce((min, a) => {
+      const remaining = ARROW_LIFETIME_MS - (now - a.createdAt)
+      return remaining < min ? remaining : min
+    }, ARROW_LIFETIME_MS)
+
+    const timer = setTimeout(() => {
+      setVisibleArrows(prev => prev.filter(a => Date.now() - a.createdAt < ARROW_LIFETIME_MS))
+    }, Math.max(nextExpiry, 50))
+
+    return () => clearTimeout(timer)
+  }, [visibleArrows])
+
+  const arrowEvents = visibleArrows.length > 0
+    ? visibleArrows.map(a => ({ ...a, fading: Date.now() - a.createdAt > ARROW_LIFETIME_MS - 800 }))
     : DUMMY_EVENTS
 
   const handleMouseMove = useCallback((e) => {

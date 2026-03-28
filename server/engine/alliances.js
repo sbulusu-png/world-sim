@@ -104,8 +104,26 @@ function strengthenAlliances(world) {
 function applyAllianceChanges(world, sourceId, targetId, action) {
   if (action === ACTIONS.ALLY) {
     formAlliance(world, sourceId, targetId);
-  } else if (action === ACTIONS.ATTACK || action === ACTIONS.BETRAY) {
-    breakAlliance(world, sourceId, targetId);
+  } else if (action === ACTIONS.ATTACK || action === ACTIONS.BETRAY || action === ACTIONS.SANCTION) {
+    const { broken, strength } = breakAlliance(world, sourceId, targetId);
+    if (broken) {
+      // Log alliance break to memory for both nations
+      const src = world.nations.find(n => n.id === sourceId);
+      const tgt = world.nations.find(n => n.id === targetId);
+      const srcName = src?.name || sourceId;
+      const tgtName = tgt?.name || targetId;
+      const entry = {
+        turn: world.config?.turn ?? 0,
+        summary: `${srcName} broke alliance with ${tgtName} via ${action}`,
+        action: 'alliance_broken',
+        target: targetId,
+      };
+      if (src && Array.isArray(src.memory)) src.memory.push(entry);
+      if (tgt && Array.isArray(tgt.memory)) {
+        tgt.memory.push({ ...entry, summary: `${tgtName} lost alliance with ${srcName} (${action})`, target: sourceId });
+      }
+      console.log(`[Alliance] Broken: ${sourceId} ↔ ${targetId} via ${action} (was strength ${strength})`);
+    }
   }
 }
 
