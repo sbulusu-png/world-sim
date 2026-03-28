@@ -7,7 +7,7 @@ const { applyAllianceChanges } = require("./engine/alliances");
 const { distributeMemory, recallPatterns } = require("./engine/memory");
 const { createEvent } = require("./models/event");
 const { VALID_ACTIONS, ACTIONS, ACTION_RESOURCE_COST } = require("./data/actions");
-const { fetchBrightDataEvent, clearBrightDataCache } = require("./data/bright-data");
+const { fetchBrightDataEvent, clearBrightDataCache, getBrightDataStats } = require("./data/bright-data");
 const { transformEvent, getRandomFallbackEvent, buildWorldEventContext } = require("./data/event-transformer");
 const { processTurn } = require("./engine/turn");
 const { startSimulation, pauseSimulation, isSimulationRunning, resetSimulationTime, initTime } = require("./engine/simulation");
@@ -46,7 +46,7 @@ app.get("/api/state", (req, res) => {
       return { ...n, patterns };
     }),
     lastTurnSummary: world.config.lastTurnSummary || null,
-    debug: getDecisionStats(),
+    debug: { ...getDecisionStats(), ...getBrightDataStats() },
   };
   res.json(enriched);
 });

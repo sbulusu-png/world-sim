@@ -1,143 +1,297 @@
 /**
  * Bright Data API client.
- * Fetches one real-world geopolitical news event per session.
+ * Fetches real-world data via Bright Data Web Scraper (LinkedIn dataset).
+ * Uses async trigger + poll pattern for non-blocking operation.
  * API key is read from environment — never hardcoded.
  */
 
-const BRIGHTDATA_BASE_URL = "https://api.brightdata.com/datasets/v3/trigger";
-const DATASET_ID = "gd_lnsb4033t0szhrvpu7"; // Web search dataset
-const TIMEOUT_MS = 20000;
-const MAX_RETRIES = 2;
+const { transformEvent, getRandomFallbackEvent } = require("./event-transformer");
 
-// Session cache — one fetch per game session
-let cachedEvent = null;
+const BRIGHTDATA_API_BASE = "https://api.brightdata.com/datasets/v3";
+const DATASET_ID = "gd_l1viktl72bvl7bjuj0"; // LinkedIn People scraper
+const POLL_TIMEOUT_MS = 10000;
+
+// --- DEBUG COUNTERS ---
+let totalBrightDataCalls = 0;
+let totalBrightDataSuccesses = 0;
+let totalBrightDataFailures = 0;
+let lastBrightDataCallTime = null;
+let lastBrightDataError = null;
+let totalTriggers = 0;
+let totalPolls = 0;
+
+function getBrightDataStats() {
+  return {
+    totalBrightDataCalls,
+    totalBrightDataSuccesses,
+    totalBrightDataFailures,
+    lastBrightDataCallTime,
+    lastBrightDataError,
+    hasBrightDataKey: !!process.env.BRIGHTDATA_API_KEY,
+    totalTriggers,
+    totalPolls,
+    pendingSnapshot: pendingSnapshot,
+    cachedEventsCount: cachedEvents.length,
+  };
+}
+
+// Log key status on module load
+console.log(`🌐 BRIGHT DATA KEY: ${process.env.BRIGHTDATA_API_KEY ? "FOUND" : "MISSING"}`);
+if (!process.env.BRIGHTDATA_API_KEY) {
+  console.error("❌ Bright Data API key missing — real-world events will use fallback");
+}
+
+// LinkedIn profiles of European political/diplomatic/media figures
+// These feed real-world data into the geopolitical simulation
+const LINKEDIN_URLS = [
+  "https://www.linkedin.com/in/uraboron",
+  "https://www.linkedin.com/in/charles-michel-523057172",
+  "https://www.linkedin.com/in/thierry-breton",
+  "https://www.linkedin.com/in/jaborrell",
+  "https://www.linkedin.com/in/kaborov",
+  "https://www.linkedin.com/in/lukas-mandl",
+  "https://www.linkedin.com/in/sebastiankurz",
+  "https://www.linkedin.com/in/margrethevestager",
+  "https://www.linkedin.com/in/nathalie-loiseau",
+  "https://www.linkedin.com/in/radeksikorski",
+];
+let urlIndex = 0;
+
+// --- Async state ---
+let pendingSnapshot = null;
+let cachedEvents = [];
+let lastTriggerTime = 0;
+const MIN_TRIGGER_INTERVAL_MS = 30000; // Don't trigger more than once per 30s
 
 /**
- * Fetch a real-world geopolitical event from Bright Data.
- * Returns a raw text result or null on failure.
- *
- * @param {string} [query="European geopolitical news today"] - Search query
- * @returns {Promise<string|null>} Raw event text or null
+ * Trigger a new LinkedIn scrape (non-blocking).
+ * Returns the snapshot_id for later polling.
  */
-async function fetchBrightDataEvent(query = "European geopolitical news today") {
-  // Return cached if we already fetched this session
-  if (cachedEvent) {
-    return cachedEvent;
-  }
-
+async function triggerScrape() {
   const apiKey = process.env.BRIGHTDATA_API_KEY;
-  if (!apiKey) {
-    console.error("[BrightData] BRIGHTDATA_API_KEY not set — skipping fetch");
-    return null;
-  }
+  if (!apiKey) return null;
 
-  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
-    try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  const url = LINKEDIN_URLS[urlIndex % LINKEDIN_URLS.length];
+  urlIndex++;
+  totalTriggers++;
 
-      const response = await fetch(`${BRIGHTDATA_BASE_URL}?dataset_id=${encodeURIComponent(DATASET_ID)}&include_errors=true&type=discover_new&discover_by=keyword`, {
+  console.log(`📡 BRIGHT DATA TRIGGER #${totalTriggers} | url="${url}"`);
+
+  try {
+    const response = await fetch(
+      `${BRIGHTDATA_API_BASE}/trigger?dataset_id=${DATASET_ID}&type=url_collection`,
+      {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${apiKey}`,
         },
-        body: JSON.stringify([{ keyword: query }]),
-        signal: controller.signal,
-      });
-
-      clearTimeout(timeoutId);
-
-      if (!response.ok) {
-        const statusText = response.statusText || "Unknown error";
-        console.error(`[BrightData] HTTP ${response.status}: ${statusText} (attempt ${attempt}/${MAX_RETRIES})`);
-        continue;
+        body: JSON.stringify([{ url }]),
       }
+    );
 
-      const data = await response.json();
-
-      // Bright Data returns a snapshot with results
-      const eventText = extractEventText(data);
-      if (eventText) {
-        cachedEvent = eventText;
-        return cachedEvent;
-      }
-
-      console.error(`[BrightData] No usable data in response (attempt ${attempt}/${MAX_RETRIES})`);
-    } catch (err) {
-      const reason = err.name === "AbortError" ? "timeout" : err.message;
-      console.error(`[BrightData] Request failed: ${reason} (attempt ${attempt}/${MAX_RETRIES})`);
+    if (!response.ok) {
+      const err = await response.text().catch(() => "");
+      console.error(`❌ BRIGHT DATA TRIGGER FAILED: HTTP ${response.status} ${err.substring(0, 200)}`);
+      return null;
     }
+
+    const data = await response.json();
+    if (data.snapshot_id) {
+      console.log(`✅ BRIGHT DATA TRIGGER SUCCESS | snapshot_id=${data.snapshot_id}`);
+      return data.snapshot_id;
+    }
+
+    console.warn(`⚠️ BRIGHT DATA TRIGGER: no snapshot_id in response`);
+    return null;
+  } catch (err) {
+    console.error(`❌ BRIGHT DATA TRIGGER ERROR: ${err.message}`);
+    return null;
+  }
+}
+
+/**
+ * Poll a pending snapshot for results.
+ * Returns array of profile data or null if not ready.
+ */
+async function pollSnapshot(snapshotId) {
+  const apiKey = process.env.BRIGHTDATA_API_KEY;
+  if (!apiKey || !snapshotId) return null;
+
+  totalPolls++;
+  console.log(`📡 BRIGHT DATA POLL #${totalPolls} | snapshot=${snapshotId}`);
+
+  try {
+    const controller = new AbortController();
+    const tid = setTimeout(() => controller.abort(), POLL_TIMEOUT_MS);
+
+    const response = await fetch(
+      `${BRIGHTDATA_API_BASE}/snapshot/${snapshotId}?format=json`,
+      {
+        headers: { Authorization: `Bearer ${apiKey}` },
+        signal: controller.signal,
+      }
+    );
+    clearTimeout(tid);
+
+    if (response.status === 202) {
+      console.log(`⏳ BRIGHT DATA POLL: snapshot still processing`);
+      return null; // Not ready yet
+    }
+
+    if (!response.ok) {
+      console.warn(`⚠️ BRIGHT DATA POLL: HTTP ${response.status}`);
+      return null;
+    }
+
+    const data = await response.json();
+    console.log(`✅ BRIGHT DATA POLL SUCCESS | items=${Array.isArray(data) ? data.length : 0}`);
+    console.log(`🌍 BRIGHT DATA POLL DATA:`, JSON.stringify(data).substring(0, 800));
+    return Array.isArray(data) ? data : null;
+  } catch (err) {
+    const reason = err.name === "AbortError" ? "timeout" : err.message;
+    console.warn(`⚠️ BRIGHT DATA POLL: ${reason}`);
+    return null;
+  }
+}
+
+/**
+ * Transform LinkedIn profile data into a geopolitical world event.
+ */
+function transformLinkedInToEvent(profiles) {
+  if (!profiles || profiles.length === 0) return null;
+
+  for (const profile of profiles) {
+    // Skip empty profiles (just input echoed back or no data)
+    if (!profile.name && !profile.headline && !profile.about) {
+      console.log(`⚠️ SKIPPING EMPTY PROFILE:`, JSON.stringify(profile).substring(0, 200));
+      continue;
+    }
+
+    const name = profile.name || "European official";
+    const headline = profile.headline || profile.about || "";
+    const city = profile.city || "";
+    const company = profile.current_company?.name || "";
+
+    // Build a geopolitical event from the profile
+    let summary;
+    if (headline) {
+      summary = `${name} (${company || city || "EU"}) signals shift in European policy: "${sanitizeEventText(headline).substring(0, 120)}"`;
+    } else {
+      summary = `European diplomatic figure ${name} from ${city || "EU"} active in regional affairs`;
+    }
+
+    // Determine relevant nations from profile data
+    const text = `${name} ${headline} ${city} ${company} ${profile.about || ""}`.toLowerCase();
+    const nations = [];
+    if (text.match(/france|paris|french|macron/)) nations.push("france");
+    if (text.match(/german|berlin|munich|germany/)) nations.push("germany");
+    if (text.match(/uk|london|british|britain|england/)) nations.push("uk");
+    if (text.match(/russia|moscow|russian|kremlin/)) nations.push("russia");
+    if (text.match(/poland|warsaw|polish/)) nations.push("poland");
+    if (text.match(/italy|rome|milan|italian/)) nations.push("italy");
+    if (nations.length === 0) nations.push("france", "germany"); // Default EU axis
+
+    // Determine category
+    let category = "diplomatic";
+    if (text.match(/military|defense|nato|army|security/)) category = "military";
+    if (text.match(/trade|economic|energy|finance|bank/)) category = "economic";
+    if (text.match(/crisis|conflict|war|sanction/)) category = "crisis";
+
+    const event = { summary, category, relevantNations: nations };
+    console.log(`🌍 TRANSFORMED LINKEDIN → EVENT:`, JSON.stringify(event));
+    return event;
   }
 
-  console.error("[BrightData] All retries exhausted — returning null");
   return null;
 }
 
 /**
- * Extract a usable event string from the Bright Data response.
- * Handles various response shapes gracefully.
+ * Fetch a real-world event via Bright Data.
+ * Uses trigger+poll pattern: triggers scrape, polls for results, falls back if needed.
  *
- * @param {any} data - Raw API response body
- * @returns {string|null} Extracted event text or null
+ * @returns {Promise<{ summary: string, category: string, relevantNations: string[], source: string }>}
  */
-function extractEventText(data) {
-  if (!data) return null;
+async function fetchBrightDataEvent() {
+  const apiKey = process.env.BRIGHTDATA_API_KEY;
 
-  // If data is a snapshot ID (async dataset), we can't use it immediately
-  if (typeof data === "string") return null;
-  if (data.snapshot_id) {
-    // Async mode — data not ready yet. Fall back.
-    console.error("[BrightData] Received snapshot_id (async mode) — cannot use immediately");
-    return null;
+  console.log(`\n🌍 FETCHING REAL-WORLD EVENT FROM BRIGHT DATA...`);
+  console.log(`🌐 BRIGHT DATA KEY: ${apiKey ? `FOUND (${apiKey.substring(0, 8)}...)` : "MISSING"}`);
+
+  totalBrightDataCalls++;
+  lastBrightDataCallTime = new Date().toISOString();
+
+  if (!apiKey) {
+    console.error("❌ Bright Data API key missing — USING FALLBACK");
+    totalBrightDataFailures++;
+    lastBrightDataError = "NO_API_KEY";
+    return { ...getRandomFallbackEvent(), source: "fallback" };
   }
 
-  // If data is an array of results
-  if (Array.isArray(data) && data.length > 0) {
-    const first = data[0];
-    // Look for common fields: title, description, snippet, text
-    const text = first.title || first.description || first.snippet || first.text || first.content;
-    if (typeof text === "string" && text.length > 10) {
-      return sanitizeEventText(text);
+  // Step 1: Poll pending snapshot for results
+  if (pendingSnapshot) {
+    console.log(`🌍 CHECKING PENDING SNAPSHOT: ${pendingSnapshot}`);
+    const profiles = await pollSnapshot(pendingSnapshot);
+    if (profiles && profiles.length > 0) {
+      const event = transformLinkedInToEvent(profiles);
+      if (event) {
+        cachedEvents.push(event);
+        console.log(`✅ BRIGHT DATA: Cached ${cachedEvents.length} events from snapshot`);
+      }
+      pendingSnapshot = null; // Done with this snapshot
+    }
+    // If 202 (still processing), keep the snapshot for next cycle
+  }
+
+  // Step 2: Trigger a new scrape if nothing pending and rate limit allows
+  if (!pendingSnapshot && (Date.now() - lastTriggerTime) > MIN_TRIGGER_INTERVAL_MS) {
+    const snapshotId = await triggerScrape();
+    if (snapshotId) {
+      pendingSnapshot = snapshotId;
+      lastTriggerTime = Date.now();
     }
   }
 
-  // If data has a results array
-  if (data.results && Array.isArray(data.results) && data.results.length > 0) {
-    const first = data.results[0];
-    const text = first.title || first.description || first.snippet || first.text || first.content;
-    if (typeof text === "string" && text.length > 10) {
-      return sanitizeEventText(text);
-    }
+  // Step 3: Return cached event if available
+  if (cachedEvents.length > 0) {
+    totalBrightDataSuccesses++;
+    const event = cachedEvents.shift();
+    console.log(`✅ BRIGHT DATA EVENT (from cache): "${event.summary}"`);
+    console.log(`✅ BRIGHT DATA STATS | calls=${totalBrightDataCalls} successes=${totalBrightDataSuccesses} failures=${totalBrightDataFailures}`);
+    return { ...event, source: "bright-data" };
   }
 
-  return null;
+  // Step 4: No cached events — use fallback
+  totalBrightDataFailures++;
+  lastBrightDataError = `NO_CACHED_DATA_AT_${new Date().toISOString()}`;
+  console.log(`⚠️ BRIGHT DATA: No cached events — using fallback (scrape pending: ${!!pendingSnapshot})`);
+  console.log(`📊 BRIGHT DATA STATS | calls=${totalBrightDataCalls} successes=${totalBrightDataSuccesses} failures=${totalBrightDataFailures} triggers=${totalTriggers} polls=${totalPolls}`);
+  return { ...getRandomFallbackEvent(), source: "fallback" };
 }
 
 /**
  * Sanitize event text — truncate and strip control characters.
- *
- * @param {string} text - Raw event text
- * @returns {string} Cleaned event text
  */
 function sanitizeEventText(text) {
   return text
-    .replace(/[\x00-\x1f\x7f]/g, " ") // strip control chars
-    .replace(/\s+/g, " ")              // collapse whitespace
+    .replace(/[\x00-\x1f\x7f]/g, " ")
+    .replace(/\s+/g, " ")
     .trim()
-    .slice(0, 500);                     // cap at 500 chars
+    .slice(0, 500);
 }
 
 /**
  * Clear the session cache (for reset/new game).
  */
 function clearBrightDataCache() {
-  cachedEvent = null;
+  pendingSnapshot = null;
+  cachedEvents = [];
+  urlIndex = 0;
+  lastTriggerTime = 0;
 }
 
 module.exports = {
   fetchBrightDataEvent,
-  extractEventText,
-  sanitizeEventText,
   clearBrightDataCache,
+  getBrightDataStats,
 };

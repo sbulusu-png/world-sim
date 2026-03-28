@@ -45,7 +45,7 @@ async function getNationDecision(nation, event, allNationIds, worldEvent) {
   }
 
   const validTargets = allNationIds.filter((id) => id !== nation.id);
-  console.log(`\n🧠 [AI-Decision] === ${nation.id} REACTION START === event=${event.type} by ${event.source} targeting ${event.target || 'none'}`);
+  console.log(`\n🧠 CALLING AI FOR: ${nation.id} | event=${event.type} by ${event.source} targeting ${event.target || 'none'}`);
 
   // Attempt AI decision
   try {
@@ -59,7 +59,7 @@ async function getNationDecision(nation, event, allNationIds, worldEvent) {
       if (parsed) {
         aiDecisionCount++;
         logCreativeDecision(nation, parsed.decision, parsed.target);
-        console.log(`✅ [AI-Decision] FINAL for ${nation.id}: decision=${parsed.decision} target=${parsed.target} source=AI | ai_total=${aiDecisionCount} fb_total=${fallbackDecisionCount}`);
+        console.log(`✅ FINAL DECISION ${nation.id}: decision=${parsed.decision} target=${parsed.target} source=ai | ai_total=${aiDecisionCount} fb_total=${fallbackDecisionCount}`);
         return { ...parsed, source: "ai" };
       }
       console.error(`⚠️  [AI-Decision] PARSE FAILED for ${nation.id} — raw was: ${rawResponse.substring(0, 200)}`);
@@ -73,8 +73,8 @@ async function getNationDecision(nation, event, allNationIds, worldEvent) {
   // Fallback to rule-based decision
   fallbackDecisionCount++;
   const fb = fallbackDecision(nation, event, allNationIds);
-  console.warn(`⚠️  [AI-Decision] FALLBACK USED for ${nation.id}: decision=${fb.decision} target=${fb.target} | reason=AI_unavailable | fb_total=${fallbackDecisionCount}`);
-  console.log(`✅ [AI-Decision] FINAL for ${nation.id}: decision=${fb.decision} target=${fb.target} source=FALLBACK`);
+  console.error(`❌ AI FAILED — USING FALLBACK for ${nation.id}: decision=${fb.decision} target=${fb.target} | fb_total=${fallbackDecisionCount}`);
+  console.log(`✅ FINAL DECISION ${nation.id}: decision=${fb.decision} target=${fb.target} source=FALLBACK`);
   return { ...fb, source: "fallback" };
 }
 
@@ -101,10 +101,10 @@ async function getAutonomousDecision(nation, allNationIds, world) {
     if (rawResponse) {
       console.log(`🌍 [AI-Auto] Got raw response for ${nation.id}: ${rawResponse.substring(0, 150)}`);
       const parsed = parseDecision(rawResponse, validTargets);
-      if (parsed && parsed.decision && parsed.decision !== "neutral") {
+      if (parsed && parsed.decision) {
         aiAutoDecisionCount++;
         logCreativeDecision(nation, parsed.decision, parsed.target);
-        console.log(`✅ [AI-Auto] FINAL for ${nation.id}: type=${parsed.decision} target=${parsed.target} source=AI | ai_auto_total=${aiAutoDecisionCount}`);
+        console.log(`✅ FINAL DECISION ${nation.id} (autonomous): type=${parsed.decision} target=${parsed.target} source=ai | ai_auto_total=${aiAutoDecisionCount}`);
         return {
           type: parsed.decision,
           target: parsed.target,

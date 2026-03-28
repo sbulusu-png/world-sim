@@ -5,11 +5,8 @@ const { appendMemory, buildMemoryEntry } = require("./memory");
 const { createEvent } = require("../models/event");
 const { ACTIONS } = require("../data/actions");
 
-// Max nations that get AI calls per reaction cycle (0 = unlimited)
-const MAX_AI_CALLS = 5;
-
 // Per-nation timeout guard: if AI takes longer than this, force fallback
-const PER_NATION_TIMEOUT_MS = 12000;
+const PER_NATION_TIMEOUT_MS = 15000;
 
 /**
  * Run agent reactions: every nation except the event source evaluates and responds.
@@ -22,12 +19,11 @@ const PER_NATION_TIMEOUT_MS = 12000;
 async function runAgentReactions(event, world) {
   const reactions = [];
   const allIds = world.nations.map((n) => n.id);
-  let aiCallCount = 0;
 
   console.log(`\n⚡ [AgentLoop] ========================================`);
-  console.log(`⚡ [AgentLoop] RUNNING AGENT REACTIONS`);
+  console.log(`⚡ [AgentLoop] RUNNING AGENT REACTIONS — AI FOR EVERY NATION`);
   console.log(`⚡ [AgentLoop] event=${event.type} | source=${event.source} | target=${event.target || 'none'} | turn=${event.turn}`);
-  console.log(`⚡ [AgentLoop] nations=[${allIds.join(', ')}] | MAX_AI_CALLS=${MAX_AI_CALLS}`);
+  console.log(`⚡ [AgentLoop] nations=[${allIds.join(', ')}] | AI_LIMIT=NONE`);
   console.log(`⚡ [AgentLoop] ========================================`);
 
   // Add self-reasoning for the source nation (so UI always has an entry)
@@ -49,33 +45,22 @@ async function runAgentReactions(event, world) {
     // Skip the nation that triggered the event
     if (nation.id === event.source) continue;
 
-    console.log(`\n👤 [AgentLoop] PROCESSING NATION: ${nation.id} (${nation.personality}) | ai_calls_so_far=${aiCallCount}/${MAX_AI_CALLS}`);
+    console.log(`\n🧠 CALLING AI FOR: ${nation.id} (${nation.personality})`);
 
     try {
-      // --- Step 1: AI-first decision (with timeout guard) ---
+      // --- Step 1: AI decision — ALWAYS called, no limits ---
       const worldEvent = world.config.worldEvent || null;
-      const shouldTryAI = MAX_AI_CALLS === 0 || aiCallCount < MAX_AI_CALLS;
 
-      let result;
-      if (shouldTryAI) {
-        result = await Promise.race([
-          getNationDecision(nation, event, allIds, worldEvent),
-          new Promise((_, reject) =>
-            setTimeout(() => reject(new Error("AI decision timeout")), PER_NATION_TIMEOUT_MS)
-          ),
-        ]).catch((err) => {
-          console.error(`[AgentLoop] AI timeout for ${nation.id}:`, err.message);
-          // getNationDecision handles its own fallback, but if the whole
-          // promise times out we need a manual fallback import
-          const { fallbackDecision } = require("../ai/fallback");
-          return { ...fallbackDecision(nation, event, allIds), source: "fallback" };
-        });
-        aiCallCount++;
-      } else {
-        // AI cap reached — use fallback directly
+      const result = await Promise.race([
+        getNationDecision(nation, event, allIds, worldEvent),
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error("AI decision timeout")), PER_NATION_TIMEOUT_MS)
+        ),
+      ]).catch((err) => {
+        console.error(`❌ AI FAILED for ${nation.id}: ${err.message} — USING FALLBACK`);
         const { fallbackDecision } = require("../ai/fallback");
-        result = { ...fallbackDecision(nation, event, allIds), source: "fallback" };
-      }
+        return { ...fallbackDecision(nation, event, allIds), source: "fallback" };
+      });
 
       const reaction = {
         nation: nation.id,
@@ -87,7 +72,7 @@ async function runAgentReactions(event, world) {
         turn: event.turn,
       };
 
-      console.log(`✅ [AgentLoop] REACTION: ${nation.id} → decision=${reaction.decision} target=${reaction.target} source=${reaction.source}`);
+      console.log(`✅ FINAL DECISION ${nation.id} → decision=${reaction.decision} target=${reaction.target} source=${reaction.source}`);
 
       // --- Step 2: Apply effects ---
       applyReactionEffects(world, nation, reaction, event.turn);

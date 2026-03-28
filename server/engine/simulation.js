@@ -8,13 +8,14 @@ const { processTurn } = require("./turn");
 const { validateWorldState } = require("./state-validator");
 const { applyWorldEventEffects } = require("./world-events");
 const { getRandomFallbackEvent } = require("../data/event-transformer");
+const { fetchBrightDataEvent, getBrightDataStats } = require("../data/bright-data");
 const { getAutonomousDecision, getDecisionStats } = require("../ai/index");
 
 // --- Configuration ---
 const CYCLE_INTERVAL_MS = 7000; // 1 cycle = 7 seconds
 const ACTION_PROBABILITY = 0.35; // 35% chance a nation acts per cycle
-const MAX_ACTIONS_PER_CYCLE = 2; // Cap autonomous events per cycle
-const MAX_AI_CALLS_PER_CYCLE = 2; // AI calls for autonomous actions per cycle
+const MAX_ACTIONS_PER_CYCLE = 6; // Allow all nations to act
+// AI is ALWAYS called — no per-cycle limit
 
 // --- Simulation state ---
 let intervalId = null;
@@ -287,12 +288,26 @@ async function runCycle() {
     // Advance the clock
     advanceDay(world.config.time);
 
-    // --- World event rotation and application ---
-    // Rotate world event every 5 cycles
-    if (cycleCount % 5 === 0 || !world.config.worldEvent) {
-      world.config.worldEvent = getRandomFallbackEvent();
-      world.config.worldEventAppliedCycle = null;
-      console.log(`[SimLoop] World event rotated: ${world.config.worldEvent.summary}`);
+    // --- World event: FORCE Bright Data API call every cycle ---
+    // Using trigger+poll pattern: trigger is instant, poll is fast GET
+    // Call every cycle to maximize chances of catching completed snapshots
+    {
+      try {
+        console.log(`🌍 [SimLoop] FETCHING REAL-WORLD EVENT VIA BRIGHT DATA...`);
+        const brightDataEvent = await fetchBrightDataEvent();
+        if (brightDataEvent) {
+          world.config.worldEvent = brightDataEvent;
+          world.config.worldEventAppliedCycle = null;
+          console.log(`🌍 [SimLoop] WORLD EVENT SET: "${brightDataEvent.summary}" [source=${brightDataEvent.source}]`);
+        }
+      } catch (err) {
+        console.error(`❌ [SimLoop] Bright Data fetch failed: ${err.message} — keeping previous event`);
+        if (!world.config.worldEvent) {
+          world.config.worldEvent = getRandomFallbackEvent();
+          world.config.worldEvent.source = "fallback";
+          console.warn(`⚠️ [SimLoop] Using fallback event: ${world.config.worldEvent.summary}`);
+        }
+      }
     }
     // Apply world event effects every 3 cycles (if not already applied this rotation)
     if (cycleCount % 3 === 0 && world.config.worldEvent && world.config.worldEventAppliedCycle !== cycleCount) {
@@ -327,61 +342,44 @@ async function runCycle() {
     for (const nation of shuffled) {
       if (actionsThisCycle >= MAX_ACTIONS_PER_CYCLE) break;
 
-      // --- AI-driven autonomous action (Fix 1) ---
-      // Try AI first for up to MAX_AI_CALLS_PER_CYCLE nations, then fallback
+      // --- AI-driven autonomous action: ALWAYS call AI, no limits ---
       let action = null;
-      if (aiAutoCallsThisCycle < MAX_AI_CALLS_PER_CYCLE) {
-        // Check personality probability gate before spending an AI call
-        const personalityBias = {
-          aggressive: 0.50, opportunistic: 0.45, diplomatic: 0.40,
-          defensive: 0.25, isolationist: 0.15,
-        };
-        let prob = personalityBias[nation.personality] ?? ACTION_PROBABILITY;
-        const phase = world.config?.phase;
-        if (phase === "war") {
-          if (nation.personality === "aggressive") prob += 0.20;
-          else if (nation.personality === "opportunistic") prob += 0.10;
-        } else if (phase === "peace") {
-          if (nation.personality === "diplomatic") prob += 0.20;
-          else if (nation.personality === "defensive") prob += 0.10;
-        }
-        if (Math.random() <= Math.min(prob, 0.85)) {
-          try {
-            console.log(`🌍 [SimLoop] AI autonomous attempt for ${nation.id} (prob=${prob.toFixed(2)})`);
-            const aiAction = await Promise.race([
-              getAutonomousDecision(nation, allIds, world),
-              new Promise((_, reject) =>
-                setTimeout(() => reject(new Error("AI auto timeout")), 12000)
-              ),
-            ]).catch(() => null);
-            aiAutoCallsThisCycle++;
+      try {
+        console.log(`🧠 CALLING AI FOR: ${nation.id} (autonomous) | personality=${nation.personality} resources=${nation.resources}`);
+        const aiAction = await Promise.race([
+          getAutonomousDecision(nation, allIds, world),
+          new Promise((_, reject) =>
+            setTimeout(() => reject(new Error("AI auto timeout")), 15000)
+          ),
+        ]).catch((err) => {
+          console.error(`❌ AI FAILED for ${nation.id} (autonomous): ${err.message} — USING FALLBACK`);
+          return null;
+        });
+        aiAutoCallsThisCycle++;
 
-            if (aiAction && aiAction.type && aiAction.target) {
-              console.log(`🌍 [SimLoop] AI autonomous SUCCESS for ${nation.id}: ${aiAction.type} → ${aiAction.target} [source=${aiAction.source || 'ai'}]`);
-              aiSuccessThisCycle++;
-              // Validate AI action against resource gates
-              if (nation.resources < 15) {
-                // Override: forced trade
-                action = { type: ACTIONS.TRADE, target: aiAction.target,
-                  reason: `[AI] ${nation.name} is forced into trade by economic desperation.`, source: "ai" };
-              } else if (nation.resources < 30 && (aiAction.type === ACTIONS.ATTACK || aiAction.type === ACTIONS.BETRAY)) {
-                action = null; // Can't afford war, skip
-              } else {
-                action = aiAction;
-              }
-            }
-          } catch (err) {
-            console.error(`[SimLoop] AI autonomous failed for ${nation.id}:`, err.message);
+        if (aiAction && aiAction.type && aiAction.target) {
+          console.log(`✅ FINAL DECISION ${nation.id} (autonomous): ${aiAction.type} → ${aiAction.target} source=${aiAction.source || 'ai'}`);
+          aiSuccessThisCycle++;
+          // Validate AI action against resource gates
+          if (nation.resources < 15) {
+            action = { type: ACTIONS.TRADE, target: aiAction.target,
+              reason: `[AI] ${nation.name} is forced into trade by economic desperation.`, source: "ai" };
+          } else if (nation.resources < 30 && (aiAction.type === ACTIONS.ATTACK || aiAction.type === ACTIONS.BETRAY)) {
+            action = null;
+          } else {
+            action = aiAction;
           }
         }
+      } catch (err) {
+        console.error(`❌ AI FAILED for ${nation.id} (autonomous):`, err.message);
       }
 
-      // Fallback to rule-based if AI didn't produce an action
+      // Fallback to rule-based ONLY if AI didn't produce an action
       if (!action) {
         action = pickAutonomousAction(nation, allIds, world);
         if (action) {
           fallbackThisCycle++;
-          console.log(`📋 [SimLoop] FALLBACK autonomous for ${nation.id}: ${action.type} → ${action.target}`);
+          console.error(`❌ AI FAILED — USING FALLBACK for ${nation.id} (autonomous): ${action.type} → ${action.target}`);
         }
       }
 
@@ -496,15 +494,29 @@ async function runCycle() {
     }
     console.log(`🔁 [SimLoop] ════════════════════════════════\n`);
 
-    // HARD ASSERTION: If 3+ cycles have passed and AI has never succeeded, something is wrong
-    if (cycleCount >= 3) {
+    // HARD ASSERTION: After 1 cycle, AI must have been called
+    if (cycleCount >= 1) {
       const stats = getDecisionStats();
       if (stats.totalApiCalls === 0) {
         console.error(`🚨🚨🚨 [ASSERTION FAILED] After ${cycleCount} cycles, totalApiCalls === 0. AI IS NOT BEING CALLED AT ALL!`);
         console.error(`🚨 Check: FEATHERLESS_API_KEY=${stats.hasApiKey ? 'present' : 'MISSING'}`);
+        if (!stats.hasApiKey) {
+          throw new Error("AI SYSTEM NOT BEING USED — NO API KEY");
+        }
       } else if (stats.totalApiSuccesses === 0) {
         console.error(`🚨🚨🚨 [ASSERTION FAILED] After ${cycleCount} cycles, ${stats.totalApiCalls} API calls but 0 successes. AI is failing every time!`);
         console.error(`🚨 Last error: ${stats.lastApiError || 'unknown'}`);
+      } else {
+        console.log(`✅ AI SYSTEM ACTIVE: ${stats.totalApiSuccesses}/${stats.totalApiCalls} calls succeeded`);
+      }
+
+      // Bright Data assertion
+      const bdStats = getBrightDataStats();
+      if (cycleCount >= 3 && bdStats.totalBrightDataCalls === 0) {
+        console.error(`🚨 [ASSERTION] Bright Data NOT being used after ${cycleCount} cycles!`);
+        console.error(`🚨 Check: BRIGHTDATA_API_KEY=${bdStats.hasBrightDataKey ? 'present' : 'MISSING'}`);
+      } else {
+        console.log(`✅ BRIGHT DATA STATUS: calls=${bdStats.totalBrightDataCalls} triggers=${bdStats.totalTriggers} polls=${bdStats.totalPolls} successes=${bdStats.totalBrightDataSuccesses} | pending=${bdStats.pendingSnapshot || 'none'} cached=${bdStats.cachedEventsCount} | worldEvent_source=${world.config.worldEvent?.source || 'none'}`);
       }
     }
 

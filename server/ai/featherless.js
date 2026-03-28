@@ -41,6 +41,7 @@ async function callFeatherless(systemPrompt, userPrompt) {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);
 
+      console.log(`📡 SENDING REQUEST TO AI | model=${MODEL} | attempt=${attempt}/${MAX_RETRIES}`);
       const response = await fetch(FEATHERLESS_BASE_URL, {
         method: "POST",
         headers: {
@@ -60,6 +61,7 @@ async function callFeatherless(systemPrompt, userPrompt) {
       });
 
       clearTimeout(timeoutId);
+      console.log(`📡 RESPONSE STATUS: ${response.status} ${response.statusText || ''}`);
 
       if (!response.ok) {
         const statusText = response.statusText || "Unknown error";
