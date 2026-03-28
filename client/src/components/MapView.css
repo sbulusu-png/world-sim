@@ -1,9 +1,11 @@
 .map-view {
   width: 100%;
   height: 100%;
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
+  background: #080c12;
 }
 
 .europe-svg {
@@ -11,13 +13,104 @@
   height: 100%;
 }
 
+/* ── Nation hover + glow effects ── */
 .nation-region polygon {
-  transition: fill 0.2s ease, stroke 0.2s ease;
+  transition: fill 0.25s ease, stroke 0.25s ease, filter 0.25s ease;
 }
 
-/* Hover brightens the current fill slightly */
-.nation-region.neutral:hover polygon  { fill: #2a4a7a; stroke: #6b9fd4; }
-.nation-region.allied:hover polygon   { fill: #2563eb; stroke: #bfdbfe; }
-.nation-region.hostile:hover polygon  { fill: #b91c1c; stroke: #fca5a5; }
-.nation-region.self:hover polygon,
-.nation-region.selected:hover polygon { fill: #fbbf24; stroke: #fde68a; }
+.nation-region:hover polygon {
+  filter: brightness(1.4);
+}
+
+.nation-region.selected polygon,
+.nation-region.self polygon {
+  filter: drop-shadow(0 0 8px rgba(245, 158, 11, 0.4));
+}
+
+.nation-region.target polygon {
+  filter: drop-shadow(0 0 8px rgba(0, 255, 136, 0.4));
+}
+
+.nation-region.allied:hover polygon { fill: #153068; }
+.nation-region.hostile:hover polygon { fill: #4a1212; }
+.nation-region.neutral:hover polygon { fill: #1a2e45; stroke: #3a6a9a; }
+
+/* ── HUD Overlay ── */
+.map-hud {
+  position: absolute;
+  bottom: 12px;
+  left: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 5;
+}
+
+.map-zoom {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.zoom-btn {
+  width: 32px;
+  height: 32px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--accent);
+  font-size: 1.1rem;
+  font-family: var(--font-mono);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--transition);
+}
+
+.zoom-btn:hover {
+  background: var(--bg-hover);
+  border-color: var(--border-accent);
+  box-shadow: var(--accent-glow);
+}
+
+.map-coords {
+  background: rgba(10, 14, 20, 0.88);
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.coord-line {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.coord-icon {
+  color: var(--accent);
+  font-size: 0.6rem;
+}
+
+.coord-label {
+  color: var(--accent);
+}
+
+.coord-value {
+  color: var(--text-primary);
+}
+
+.coord-status-icon {
+  color: var(--accent);
+  font-size: 0.5rem;
+}
+
+.coord-status {
+  color: var(--accent);
+  font-size: 0.6rem;
+}

@@ -1,90 +1,87 @@
 import { useState, useEffect } from 'react'
+import TopBar from './components/TopBar'
+import CommandPanel from './components/CommandPanel'
 import MapView from './components/MapView'
 import SidePanel from './components/SidePanel'
-import ActionBar from './components/ActionBar'
+import ErrorBoundary from './components/ErrorBoundary'
 import { useWorldState } from './hooks/useWorldState'
 import './App.css'
 
 function App() {
   const [selectedNation, setSelectedNation] = useState(null)
+  const [targetNation, setTargetNation] = useState(null)
   const { worldState, loading, error, turnSummary, simRunning, refreshState, triggerEvent, resetSimulation, startSim, pauseSim } = useWorldState()
 
-  // Load world state on mount
   useEffect(() => { refreshState() }, [refreshState])
 
-  const time = worldState?.config?.time
-  const months = ["", "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-                  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
-  const dateStr = time ? `${time.day} ${months[time.month]} ${time.year}` : '—'
+  // Clear target when source changes or matches target
+  useEffect(() => {
+    if (targetNation && targetNation === selectedNation) setTargetNation(null)
+  }, [selectedNation, targetNation])
 
   return (
     <div className="app">
-      <header className="app-header">
-        <h1>World Sim</h1>
-        <p className="subtitle">AI-Driven Geopolitical Simulation</p>
-        <div className="header-controls">
-          <span className="turn-badge">
-            Turn {worldState?.config?.turn ?? '—'}
-          </span>
-          <span className="date-badge">
-            {dateStr}
-          </span>
-          <button
-            className={simRunning ? 'sim-btn sim-btn--pause' : 'sim-btn sim-btn--start'}
-            onClick={simRunning ? pauseSim : startSim}
-          >
-            {simRunning ? '⏸ Pause' : '▶ Start'}
-          </button>
-          <button
-            className="reset-btn"
-            onClick={resetSimulation}
-            disabled={loading}
-          >
-            Reset
-          </button>
-        </div>
-      </header>
+      <TopBar
+        worldState={worldState}
+        simRunning={simRunning}
+        onStart={startSim}
+        onPause={pauseSim}
+        onReset={resetSimulation}
+        loading={loading}
+      />
 
       {error && (
         <div className="error-banner">
-          ⚠ {error} — <button onClick={refreshState}>Retry</button>
+          <span className="error-icon">⚠</span>
+          <span>{error}</span>
+          <button onClick={refreshState}>RETRY</button>
         </div>
       )}
 
-      {/* World Event Banner (Phase 6) */}
-      {worldState?.config?.worldEvent && (
-        <div className="world-event-banner">
-          <span className="world-event-icon">
-            {worldState.config.worldEvent.category === 'military' ? '⚔'
-              : worldState.config.worldEvent.category === 'diplomatic' ? '🤝'
-              : worldState.config.worldEvent.category === 'economic' ? '📊'
-              : '⚠'}
-          </span>
-          <span className="world-event-text">
-            <strong>World Event:</strong> {worldState.config.worldEvent.summary}
-          </span>
-        </div>
-      )}
+      <div className="app-body">
+        <CommandPanel
+          selectedNation={selectedNation}
+          targetNation={targetNation}
+          onTargetChange={setTargetNation}
+          worldState={worldState}
+          onAction={triggerEvent}
+          loading={loading}
+        />
 
-      <main className="app-main">
-        <div className="map-column">
+        <main className="map-area">
+          {worldState?.config?.worldEvent && (
+            <div className="world-event-banner">
+              <span className="world-event-icon">◈</span>
+              <span className="world-event-text">
+                WORLD_EVENT: {worldState.config.worldEvent.summary}
+              </span>
+            </div>
+          )}
+
           <div className="map-container">
-            {loading && !worldState && <div className="loading-overlay">Loading world…</div>}
-            <MapView
-              selectedNation={selectedNation}
-              onNationClick={setSelectedNation}
-              worldState={worldState}
-            />
+            {loading && !worldState && (
+              <div className="loading-overlay">INITIALIZING THEATRE...</div>
+            )}
+            <ErrorBoundary>
+              <MapView
+                selectedNation={selectedNation}
+                targetNation={targetNation}
+                onNationClick={setSelectedNation}
+                worldState={worldState}
+              />
+            </ErrorBoundary>
           </div>
-          <ActionBar
-            selectedNation={selectedNation}
-            worldState={worldState}
-            onAction={triggerEvent}
-            loading={loading}
-          />
-        </div>
-        <SidePanel selectedNation={selectedNation} worldState={worldState} turnSummary={turnSummary} />
-      </main>
+        </main>
+
+        <SidePanel
+          selectedNation={selectedNation}
+          targetNation={targetNation}
+          worldState={worldState}
+          turnSummary={turnSummary}
+          onAction={triggerEvent}
+          loading={loading}
+        />
+      </div>
     </div>
   )
 }

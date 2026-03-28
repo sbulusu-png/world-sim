@@ -1,32 +1,33 @@
+import { NATION_META } from '../data/worldData'
 import './NationPanel.css'
 
 const PERSONALITY_COLORS = {
-  diplomatic:    '#34d399',
-  opportunistic: '#fbbf24',
-  aggressive:    '#f87171',
-  defensive:     '#818cf8',
+  diplomatic:    '#00ff88',
+  opportunistic: '#ffc312',
+  aggressive:    '#ff4757',
+  defensive:     '#0abde3',
 }
 
 const EVENT_TYPE_COLORS = {
-  attack:   '#f87171',
-  sanction: '#fb923c',
-  ally:     '#60a5fa',
-  trade:    '#34d399',
-  support:  '#a78bfa',
-  betray:   '#fb923c',
-  neutral:  '#6b7280',
+  attack:   '#ff4757',
+  sanction: '#ff8c42',
+  ally:     '#4488ff',
+  trade:    '#00ff88',
+  support:  '#a55eea',
+  betray:   '#ff8c42',
+  neutral:  '#6b7b8d',
 }
 
 const STATUS_COLORS = {
-  peace:   '#34d399',
-  tension: '#fbbf24',
-  war:     '#f87171',
+  peace:   '#00ff88',
+  tension: '#ffc312',
+  war:     '#ff4757',
 }
 
 function TrustBar({ label, score }) {
   const safeScore = typeof score === 'number' && !isNaN(score) ? score : 0
   const pct   = Math.max(0, Math.min(100, ((safeScore + 100) / 200) * 100))
-  const color = safeScore >= 30 ? '#34d399' : safeScore >= 0 ? '#fbbf24' : '#f87171'
+  const color = safeScore >= 30 ? '#00ff88' : safeScore >= 0 ? '#ffc312' : '#ff4757'
   return (
     <div className="trust-row">
       <span className="trust-label">{label}</span>
@@ -40,279 +41,284 @@ function TrustBar({ label, score }) {
   )
 }
 
-/**
- * SidePanel — shows live world state for the selected nation.
- * Falls back to empty state when nothing is selected.
- */
-function SidePanel({ selectedNation, worldState, turnSummary }) {
+function SidePanel({ selectedNation, targetNation, worldState, turnSummary, onAction, loading }) {
   if (!selectedNation) {
     return (
-      <div className="nation-panel">
-        <p className="no-data" style={{ marginTop: '2rem', textAlign: 'center' }}>
-          Click a nation to inspect it
-        </p>
-      </div>
+      <aside className="dossier">
+        <div className="dossier-top-header">
+          <span className="dossier-label">REGION_DOSSIER</span>
+        </div>
+        <p className="dossier-empty">SELECT A REGION TO VIEW INTELLIGENCE</p>
+      </aside>
     )
   }
 
-  // Use live data if available; otherwise show loading placeholder
   const nation = worldState?.nationMap?.[selectedNation]
-
   if (!nation) {
     return (
-      <div className="nation-panel">
-        <p className="no-data" style={{ marginTop: '2rem', textAlign: 'center' }}>
-          Loading nation data…
-        </p>
-      </div>
+      <aside className="dossier">
+        <div className="dossier-top-header">
+          <span className="dossier-label">REGION_DOSSIER</span>
+        </div>
+        <p className="dossier-empty">LOADING INTEL...</p>
+      </aside>
     )
   }
 
-  const personalityColor  = PERSONALITY_COLORS[nation.personality] ?? '#9ca3af'
-  const statusColor       = STATUS_COLORS[nation.status] ?? '#6b7280'
-  const eventLog          = worldState?.config?.eventLog ?? []
-  const relevantEvents    = eventLog
+  const meta = NATION_META[selectedNation] || {}
+  const personalityColor = PERSONALITY_COLORS[nation.personality] ?? '#6b7b8d'
+  const statusColor = STATUS_COLORS[nation.status] ?? '#6b7b8d'
+  const eventLog = worldState?.config?.eventLog ?? []
+  const relevantEvents = eventLog
     .filter(e => e.source === selectedNation || e.target === selectedNation)
-    .slice(-10)
+    .slice(-6)
     .reverse()
 
+  const canExecute = selectedNation && targetNation && !loading
+
+  const handleDiplomacy = async () => {
+    if (!canExecute) return
+    await onAction({ type: 'ally', source: selectedNation, target: targetNation })
+  }
+
   return (
-    <div className="nation-panel">
+    <aside className="dossier">
       {/* Header */}
-      <div className="panel-header">
-        <h2 className="panel-nation-name">{nation.name}</h2>
-        <span
-          className="personality-badge"
-          style={{ color: personalityColor, borderColor: personalityColor }}
-        >
-          {nation.personality}
-        </span>
-        {nation.experience && (nation.experience.hostilityReceived > 0 || nation.experience.cooperationReceived > 0) && (
-          <div style={{ display: 'flex', gap: '6px', fontSize: '0.65rem', marginTop: '4px' }}>
-            {nation.experience.hostilityReceived > 0 && (
-              <span style={{ color: '#f87171' }}>⚔ {nation.experience.hostilityReceived}</span>
+      <div className="dossier-top-header">
+        <span className="dossier-label">REGION_DOSSIER</span>
+        <span className="dossier-flag">▣</span>
+      </div>
+
+      <div className="dossier-scroll">
+        {/* Country Name */}
+        <div className="dossier-country">
+          <h2 className="dossier-country-name">{nation.name.toUpperCase()}</h2>
+          <span className="dossier-personality" style={{ color: personalityColor, borderColor: personalityColor }}>
+            {nation.personality}
+          </span>
+          {nation.experience && (nation.experience.hostilityReceived > 0 || nation.experience.cooperationReceived > 0) && (
+            <div className="dossier-experience">
+              {nation.experience.hostilityReceived > 0 && (
+                <span className="exp-hostile">⚔ {nation.experience.hostilityReceived}</span>
+              )}
+              {nation.experience.cooperationReceived > 0 && (
+                <span className="exp-coop">♦ {nation.experience.cooperationReceived}</span>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Leader Identity */}
+        <div className="dossier-section">
+          <div className="dossier-field-label">■ LEADER_IDENTITY</div>
+          <div className="dossier-field-value">{meta.leader || 'CLASSIFIED'}</div>
+        </div>
+
+        {/* GDP + Population */}
+        <div className="dossier-stats-row">
+          <div className="dossier-stat-box">
+            <span className="dossier-stat-label">GDP_INDEX</span>
+            <span className="dossier-stat-value">{meta.gdp || '—'}</span>
+          </div>
+          <div className="dossier-stat-box">
+            <span className="dossier-stat-label">HUMAN_COUNT</span>
+            <span className="dossier-stat-value">{meta.population || '—'}</span>
+          </div>
+        </div>
+
+        {/* Threat Analysis */}
+        <div className="dossier-section">
+          <div className="dossier-field-label">THREAT_ANALYSIS</div>
+          <div className="dossier-threat">
+            <span className="threat-icon" style={{ color: statusColor }}>
+              {nation.status === 'war' ? '⚠' : nation.status === 'tension' ? '◈' : '⊘'}
+            </span>
+            <span className="threat-text" style={{ color: statusColor }}>
+              ACTIVE_CONFLICTS: {nation.status === 'war' ? 'ENGAGED' : nation.status === 'tension' ? 'ELEVATED' : 'NONE'}
+            </span>
+          </div>
+          {/* Resource bar */}
+          <div className="dossier-resource">
+            <div className="resource-header">
+              <span>RESOURCES</span>
+              <span style={{ color: nation.resources < 30 ? 'var(--red)' : nation.resources < 60 ? 'var(--yellow)' : 'var(--accent)' }}>
+                {nation.resources}/120
+              </span>
+            </div>
+            <div className="resource-bar-bg">
+              <div className="resource-bar-fill" style={{
+                width: `${Math.min(100, (nation.resources / 120) * 100)}%`,
+                background: nation.resources < 30 ? 'var(--red)' : nation.resources < 60 ? 'var(--yellow)' : 'var(--accent)',
+              }} />
+            </div>
+          </div>
+        </div>
+
+        {/* Strategic Intent */}
+        {nation.intent && (
+          <div className="dossier-section">
+            <div className="dossier-field-label">STRATEGIC_INTENT</div>
+            <div className="dossier-intent">
+              <span className="intent-type" style={{ color: EVENT_TYPE_COLORS[nation.intent.type] ?? '#6b7b8d' }}>
+                {nation.intent.type.toUpperCase()}
+              </span>
+              {nation.intent.target && (
+                <>
+                  <span className="intent-arrow">→</span>
+                  <span className="intent-target">
+                    {worldState?.nationMap?.[nation.intent.target]?.name ?? nation.intent.target}
+                  </span>
+                </>
+              )}
+              <span className="intent-ttl">{nation.intent.expiresIn}T</span>
+            </div>
+          </div>
+        )}
+
+        {/* Alliance Network */}
+        <div className="dossier-section">
+          <div className="dossier-field-label">ALLIANCE_NETWORK</div>
+          {nation.alliances.length > 0 ? (
+            <div className="alliance-list">
+              {nation.alliances.map(a => {
+                const allyId = typeof a === 'string' ? a : a.id
+                const strength = typeof a === 'string' ? 1 : (a.strength || 1)
+                return (
+                  <span key={allyId} className="alliance-badge" title={`Strength ${strength}/3`}>
+                    {worldState.nationMap[allyId]?.name ?? allyId}
+                    {strength > 1 && <span className="alliance-stars">{'★'.repeat(strength)}</span>}
+                  </span>
+                )
+              })}
+            </div>
+          ) : (
+            <p className="dossier-no-data">NO ACTIVE PACTS</p>
+          )}
+        </div>
+
+        {/* Trust Matrix */}
+        <div className="dossier-section">
+          <div className="dossier-field-label">TRUST_MATRIX</div>
+          <div className="trust-list">
+            {Object.entries(nation.trust)
+              .sort((a, b) => b[1] - a[1])
+              .map(([id, score]) => (
+                <TrustBar key={id} label={worldState.nationMap[id]?.name ?? id} score={score} />
+              ))}
+          </div>
+        </div>
+
+        {/* Memory Patterns */}
+        {nation.patterns && Object.keys(nation.patterns).length > 0 && (
+          <div className="dossier-section">
+            <div className="dossier-field-label">MEMORY_PATTERNS</div>
+            <div className="patterns-list">
+              {Object.entries(nation.patterns)
+                .sort((a, b) => (b[1].hostile + b[1].friendly) - (a[1].hostile + a[1].friendly))
+                .map(([otherId, p]) => {
+                  const name = worldState.nationMap[otherId]?.name ?? otherId
+                  const isHostile = p.hostile > p.friendly
+                  const isFriendly = p.friendly > p.hostile
+                  return (
+                    <div key={otherId} className="pattern-entry">
+                      <span className="pattern-icon" style={{ color: isHostile ? '#ff4757' : isFriendly ? '#00ff88' : '#ffc312' }}>
+                        {isHostile ? '⚔' : isFriendly ? '♦' : '◆'}
+                      </span>
+                      <span className="pattern-name">{name}</span>
+                      {p.hostile > 0 && <span className="pattern-hostile">{p.hostile}× hostile</span>}
+                      {p.friendly > 0 && <span className="pattern-friendly">{p.friendly}× friendly</span>}
+                    </div>
+                  )
+                })}
+            </div>
+          </div>
+        )}
+
+        {/* System Log */}
+        <div className="dossier-section dossier-section--log">
+          <div className="dossier-field-label">SYSTEM_LOG_v13.04</div>
+          <div className="system-log">
+            {relevantEvents.length > 0 ? (
+              relevantEvents.map((evt, i) => {
+                const isSource = evt.source === selectedNation
+                const otherId = isSource ? evt.target : evt.source
+                const otherName = worldState.nationMap[otherId]?.name ?? otherId ?? '—'
+                return (
+                  <div key={i} className="log-entry">
+                    <span className="log-prefix">&gt;</span>
+                    <span className="log-text">
+                      {evt.type?.toUpperCase()} {isSource ? '→' : '←'} {otherName}
+                    </span>
+                  </div>
+                )
+              })
+            ) : (
+              <>
+                <div className="log-entry">
+                  <span className="log-prefix">&gt;</span>
+                  <span className="log-text">ANALYZING TERRITORIAL STABILITY...</span>
+                </div>
+                <div className="log-entry">
+                  <span className="log-prefix">&gt;</span>
+                  <span className="log-text">TRADE ROUTES OPERATIONAL...</span>
+                </div>
+                <div className="log-entry">
+                  <span className="log-prefix">&gt;</span>
+                  <span className="log-text">DIPLOMATIC CHANNELS: OPEN</span>
+                </div>
+              </>
             )}
-            {nation.experience.cooperationReceived > 0 && (
-              <span style={{ color: '#34d399' }}>♦ {nation.experience.cooperationReceived}</span>
-            )}
+          </div>
+        </div>
+
+        {/* AI Reactions */}
+        {turnSummary && turnSummary.reactions && turnSummary.reactions.length > 0 && (
+          <div className="dossier-section">
+            <div className="dossier-field-label">AI_REACTIONS (TURN {turnSummary.turn})</div>
+            <div className="system-log">
+              {turnSummary.reactions.map((r, i) => (
+                <div key={i} className="log-entry">
+                  <span className="log-prefix" style={{ color: r.source === 'ai' ? '#4488ff' : '#6b7b8d' }}>
+                    {r.source === 'ai' ? '▶' : '■'}
+                  </span>
+                  <span className="log-text">
+                    {r.nationName}: {r.decision?.toUpperCase()}{r.target ? ` → ${worldState?.nationMap?.[r.target]?.name ?? r.target}` : ''}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Memory Log */}
+        {nation.memory && nation.memory.length > 0 && (
+          <div className="dossier-section">
+            <div className="dossier-field-label">MEMORY_LOG</div>
+            <div className="system-log">
+              {nation.memory.slice(-8).reverse().map((entry, i) => (
+                <div key={i} className="log-entry">
+                  <span className="log-prefix">T{entry.turn ?? i}</span>
+                  <span className="log-text">
+                    {typeof entry === 'string'
+                      ? entry
+                      : (entry.summary ?? `${entry.action ?? '?'} → ${entry.target ?? '?'}`)}
+                  </span>
+                </div>
+              ))}
+            </div>
           </div>
         )}
       </div>
 
-      {/* Status + Resources */}
-      <section className="panel-section">
-        <h3 className="section-title">Status</h3>
-        <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-          <span style={{ color: statusColor, fontWeight: 600, fontSize: '0.85rem', textTransform: 'capitalize' }}>
-            ● {nation.status}
-          </span>
-        </div>
-        {/* Resource bar */}
-        <div style={{ marginTop: '0.5rem' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem', color: '#6b7280', marginBottom: '3px' }}>
-            <span>Resources</span>
-            <span style={{ color: nation.resources < 30 ? '#f87171' : nation.resources < 60 ? '#fbbf24' : '#34d399', fontWeight: 600 }}>
-              {nation.resources}/120
-            </span>
-          </div>
-          <div style={{ height: '6px', background: '#1a2035', borderRadius: '3px', overflow: 'hidden' }}>
-            <div style={{
-              height: '100%',
-              width: `${Math.min(100, (nation.resources / 120) * 100)}%`,
-              background: nation.resources < 30 ? '#f87171' : nation.resources < 60 ? '#fbbf24' : '#34d399',
-              borderRadius: '3px',
-              transition: 'width 0.4s ease',
-            }} />
-          </div>
-        </div>
-      </section>
-
-      {/* Strategic Intent */}
-      {nation.intent && (
-        <section className="panel-section">
-          <h3 className="section-title">Strategic Intent</h3>
-          <div style={{ fontSize: '0.78rem', display: 'flex', gap: '6px', alignItems: 'center' }}>
-            <span style={{
-              padding: '2px 6px',
-              borderRadius: '4px',
-              fontSize: '0.7rem',
-              fontWeight: 600,
-              background: EVENT_TYPE_COLORS[nation.intent.type] ? `${EVENT_TYPE_COLORS[nation.intent.type]}22` : '#1f2937',
-              color: EVENT_TYPE_COLORS[nation.intent.type] ?? '#9ca3af',
-              border: `1px solid ${EVENT_TYPE_COLORS[nation.intent.type] ?? '#374151'}`,
-            }}>
-              {nation.intent.type}
-            </span>
-            {nation.intent.target && (
-              <>
-                <span style={{ color: '#6b7280' }}>→</span>
-                <span style={{ color: '#d1d5db' }}>
-                  {worldState?.nationMap?.[nation.intent.target]?.name ?? nation.intent.target}
-                </span>
-              </>
-            )}
-            <span style={{ color: '#6b7280', fontSize: '0.65rem', marginLeft: 'auto' }}>
-              {nation.intent.expiresIn}t left
-            </span>
-          </div>
-        </section>
-      )}
-
-      {/* Alliances */}
-      <section className="panel-section">
-        <h3 className="section-title">Alliances</h3>
-        {nation.alliances.length > 0 ? (
-          <div className="alliance-list">
-            {nation.alliances.map(a => {
-              const allyId = typeof a === 'string' ? a : a.id;
-              const strength = typeof a === 'string' ? 1 : (a.strength || 1);
-              return (
-                <span key={allyId} className="alliance-badge" title={`Strength ${strength}/3`}>
-                  {worldState.nationMap[allyId]?.name ?? allyId}
-                  {strength > 1 && <span style={{ marginLeft: '0.25rem', fontSize: '0.7rem', opacity: 0.7 }}>{'★'.repeat(strength)}</span>}
-                </span>
-              );
-            })}
-          </div>
-        ) : (
-          <p className="no-data">No active alliances</p>
-        )}
-      </section>
-
-      {/* Trust Scores */}
-      <section className="panel-section">
-        <h3 className="section-title">Trust Scores</h3>
-        <div className="trust-list">
-          {Object.entries(nation.trust)
-            .sort((a, b) => b[1] - a[1])
-            .map(([id, score]) => (
-              <TrustBar
-                key={id}
-                label={worldState.nationMap[id]?.name ?? id}
-                score={score}
-              />
-            ))}
-        </div>
-      </section>
-
-      {/* Memory Patterns (Phase 6) */}
-      {nation.patterns && Object.keys(nation.patterns).length > 0 && (
-        <section className="panel-section">
-          <h3 className="section-title">Memory Patterns</h3>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-            {Object.entries(nation.patterns)
-              .sort((a, b) => (b[1].hostile + b[1].friendly) - (a[1].hostile + a[1].friendly))
-              .map(([otherId, p]) => {
-                const name = worldState.nationMap[otherId]?.name ?? otherId
-                const isHostile = p.hostile > p.friendly
-                const isFriendly = p.friendly > p.hostile
-                return (
-                  <div key={otherId} style={{ fontSize: '0.72rem', display: 'flex', gap: '6px', alignItems: 'center' }}>
-                    <span style={{ color: isHostile ? '#f87171' : isFriendly ? '#34d399' : '#fbbf24', width: '10px', textAlign: 'center' }}>
-                      {isHostile ? '⚔' : isFriendly ? '♦' : '◆'}
-                    </span>
-                    <span style={{ color: '#9ca3af', flex: 1 }}>{name}</span>
-                    {p.hostile > 0 && <span style={{ color: '#f87171', fontSize: '0.68rem' }}>{p.hostile}× hostile</span>}
-                    {p.friendly > 0 && <span style={{ color: '#34d399', fontSize: '0.68rem' }}>{p.friendly}× friendly</span>}
-                  </div>
-                )
-              })}
-          </div>
-        </section>
-      )}
-
-      {/* Memory Log */}
-      {nation.memory && nation.memory.length > 0 && (
-        <section className="panel-section">
-          <h3 className="section-title">Memory Log</h3>
-          <ul className="event-list">
-            {nation.memory.slice(-10).reverse().map((entry, i) => (
-              <li key={i} className="event-item">
-                <span className="event-time">T{entry.turn ?? i}</span>
-                <span className="event-dot" style={{ background: '#818cf8' }} />
-                <span className="event-text">
-                  {typeof entry === 'string'
-                    ? entry
-                    : (entry.summary ?? `${entry.action ?? '?'} → ${entry.target ?? '?'}`)}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
-
-      {/* AI Reactions (Phase 7) */}
-      {turnSummary && turnSummary.reactions && turnSummary.reactions.length > 0 && (
-        <section className="panel-section">
-          <h3 className="section-title">AI Reactions (Turn {turnSummary.turn})</h3>
-          <ul className="event-list">
-            {turnSummary.reactions.map((r, i) => {
-              const color = EVENT_TYPE_COLORS[r.decision] ?? '#9ca3af'
-              const isAI = r.source === 'ai'
-              return (
-                <li key={i} className="event-item" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: '0.25rem' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <span style={{
-                      fontSize: '0.6rem',
-                      fontWeight: 700,
-                      padding: '1px 5px',
-                      borderRadius: '3px',
-                      background: isAI ? '#1e3a5f' : '#1f2937',
-                      color: isAI ? '#60a5fa' : '#6b7280',
-                      border: `1px solid ${isAI ? '#2563eb' : '#374151'}`,
-                      letterSpacing: '0.04em',
-                    }}>
-                      {isAI ? 'AI' : 'Rule'}
-                    </span>
-                    <span className="event-dot" style={{ background: color }} />
-                    <strong style={{ color }}>{r.nationName}</strong>
-                    <span style={{ color: '#9ca3af' }}>→</span>
-                    <span style={{ color }}>{r.decision}</span>
-                    {r.target && (
-                      <span style={{ color: '#6b7280' }}>
-                        {worldState?.nationMap?.[r.target]?.name ?? r.target}
-                      </span>
-                    )}
-                  </div>
-                  <p style={{ margin: 0, fontSize: '0.75rem', color: '#9ca3af', paddingLeft: '1.25rem' }}>
-                    {r.reasoning}
-                  </p>
-                </li>
-              )
-            })}
-          </ul>
-        </section>
-      )}
-
-      {/* Recent Events involving this nation */}
-      <section className="panel-section">
-        <h3 className="section-title">Recent Events</h3>
-        {relevantEvents.length > 0 ? (
-          <ul className="event-list">
-            {relevantEvents.map((evt, i) => {
-              const isSource  = evt.source === selectedNation
-              const otherId   = isSource ? evt.target : evt.source
-              const otherName = worldState.nationMap[otherId]?.name ?? otherId ?? '—'
-              const color     = EVENT_TYPE_COLORS[evt.type] ?? '#9ca3af'
-              return (
-                <li key={i} className="event-item">
-                  <span className="event-time">T{evt.turn ?? i}</span>
-                  <span className="event-dot" style={{ background: color }} />
-                  <span className="event-text">
-                    <strong style={{ color }}>{evt.type}</strong>
-                    {otherId && (
-                      <span className="event-other"> {isSource ? '→' : '←'} {otherName}</span>
-                    )}
-                  </span>
-                </li>
-              )
-            })}
-          </ul>
-        ) : (
-          <p className="no-data">No events yet this session</p>
-        )}
-      </section>
-    </div>
+      {/* CTA Button */}
+      <button
+        className="dossier-cta"
+        disabled={!canExecute}
+        onClick={handleDiplomacy}
+      >
+        INITIATE_DIPLOMACY
+      </button>
+    </aside>
   )
 }
 

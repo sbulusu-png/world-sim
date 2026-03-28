@@ -1,1 +1,75 @@
-/* Reset - minimal global styles handled in App.css */
+/* ═══════════════════════════════════════════
+   EUROSIM — Tactical Command Theme System
+   ═══════════════════════════════════════════ */
+
+:root {
+  /* ── Backgrounds ── */
+  --bg-base: #0a0e14;
+  --bg-panel: #111820;
+  --bg-panel-alt: #0d1117;
+  --bg-hover: #1a2332;
+  --bg-inset: #080c12;
+
+  /* ── Accent Colors ── */
+  --accent: #00ff88;
+  --accent-dim: #00cc6a;
+  --accent-muted: rgba(0, 255, 136, 0.06);
+  --accent-glow: 0 0 10px rgba(0, 255, 136, 0.25);
+
+  /* ── Semantic Colors ── */
+  --red: #ff4757;
+  --yellow: #ffc312;
+  --blue: #4488ff;
+  --orange: #ff8c42;
+  --purple: #a55eea;
+  --cyan: #0abde3;
+
+  /* ── Text ── */
+  --text-primary: #c8d6e5;
+  --text-secondary: #6b7b8d;
+  --text-muted: #3d4f5f;
+  --text-accent: #00ff88;
+
+  /* ── Borders ── */
+  --border: #1b2b35;
+  --border-accent: rgba(0, 255, 136, 0.25);
+
+  /* ── Typography ── */
+  --font-mono: 'Share Tech Mono', 'Courier New', monospace;
+  --font-ui: 'Rajdhani', 'Segoe UI', sans-serif;
+
+  /* ── Spacing ── */
+  --radius: 2px;
+  --transition: 0.2s ease;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: var(--font-ui);
+  background: var(--bg-base);
+  color: var(--text-primary);
+  min-height: 100vh;
+  overflow: hidden;
+}
+
+::-webkit-scrollbar {
+  width: 4px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-base);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 2px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--accent-dim);
+}

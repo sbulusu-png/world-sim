@@ -1,18 +1,412 @@
+/* ═══════════════════════════════════════════
+   DOSSIER PANEL — Tactical Intelligence UI
+   ═══════════════════════════════════════════ */
+
+.dossier {
+  width: 300px;
+  flex-shrink: 0;
+  background: var(--bg-panel);
+  border-left: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+.dossier-scroll {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 12px 12px;
+}
+
+/* ── Header ── */
+.dossier-top-header {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+}
+
+.dossier-label {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: var(--accent);
+  letter-spacing: 0.08em;
+}
+
+.dossier-flag {
+  color: var(--text-muted);
+  font-size: 1rem;
+}
+
+.dossier-empty {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  text-align: center;
+  padding: 3rem 1rem;
+  letter-spacing: 0.04em;
+}
+
+/* ── Country Name ── */
+.dossier-country {
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 10px;
+}
+
+.dossier-country-name {
+  font-family: var(--font-ui);
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: #ffffff;
+  letter-spacing: 0.04em;
+  margin-bottom: 4px;
+}
+
+.dossier-personality {
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  border: 1px solid;
+  padding: 2px 8px;
+  border-radius: var(--radius);
+}
+
+.dossier-experience {
+  display: flex;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.exp-hostile {
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  color: var(--red);
+}
+
+.exp-coop {
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  color: var(--accent);
+}
+
+/* ── Sections ── */
+.dossier-section {
+  margin-bottom: 12px;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-panel-alt);
+}
+
+.dossier-field-label {
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  color: var(--text-muted);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+
+.dossier-field-value {
+  font-family: var(--font-ui);
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  letter-spacing: 0.02em;
+}
+
+/* ── Stats Row (GDP + Pop) ── */
+.dossier-stats-row {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.dossier-stat-box {
+  flex: 1;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-panel-alt);
+}
+
+.dossier-stat-label {
+  font-family: var(--font-mono);
+  font-size: 0.55rem;
+  color: var(--text-muted);
+  letter-spacing: 0.06em;
+  display: block;
+  margin-bottom: 4px;
+}
+
+.dossier-stat-value {
+  font-family: var(--font-ui);
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--accent);
+  display: block;
+}
+
+/* ── Threat Analysis ── */
+.dossier-threat {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.threat-icon {
+  font-size: 0.9rem;
+}
+
+.threat-text {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.04em;
+}
+
+/* ── Resource Bar ── */
+.dossier-resource {
+  margin-top: 6px;
+}
+
+.resource-header {
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  color: var(--text-secondary);
+  margin-bottom: 4px;
+}
+
+.resource-bar-bg {
+  height: 5px;
+  background: var(--bg-inset);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.resource-bar-fill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.4s ease;
+}
+
+/* ── Intent ── */
+.dossier-intent {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+}
+
+.intent-type {
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+.intent-arrow {
+  color: var(--text-muted);
+}
+
+.intent-target {
+  color: var(--text-primary);
+}
+
+.intent-ttl {
+  color: var(--text-muted);
+  font-size: 0.62rem;
+  margin-left: auto;
+}
+
+/* ── Alliances ── */
+.alliance-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.alliance-badge {
+  background: rgba(0, 68, 255, 0.12);
+  color: var(--blue);
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 3px 8px;
+  border: 1px solid rgba(68, 136, 255, 0.2);
+  border-radius: var(--radius);
+}
+
+.alliance-stars {
+  margin-left: 4px;
+  font-size: 0.6rem;
+  opacity: 0.7;
+}
+
+.dossier-no-data {
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  color: var(--text-muted);
+  letter-spacing: 0.04em;
+}
+
+/* ── Trust ── */
+.trust-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.trust-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.trust-label {
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  color: var(--text-secondary);
+  width: 60px;
+  flex-shrink: 0;
+}
+
+.trust-bar-bg {
+  flex: 1;
+  height: 4px;
+  background: var(--bg-inset);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.trust-bar-fill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.4s ease;
+}
+
+.trust-score {
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  font-weight: 600;
+  width: 30px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+/* ── Patterns ── */
+.patterns-list {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.pattern-entry {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.68rem;
+}
+
+.pattern-icon {
+  width: 12px;
+  text-align: center;
+}
+
+.pattern-name {
+  flex: 1;
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+}
+
+.pattern-hostile {
+  color: var(--red);
+  font-family: var(--font-mono);
+  font-size: 0.58rem;
+}
+
+.pattern-friendly {
+  color: var(--accent);
+  font-family: var(--font-mono);
+  font-size: 0.58rem;
+}
+
+/* ── System Log ── */
+.system-log {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  max-height: 120px;
+  overflow-y: auto;
+}
+
+.log-entry {
+  display: flex;
+  gap: 6px;
+  align-items: flex-start;
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  line-height: 1.4;
+}
+
+.log-prefix {
+  color: var(--accent);
+  flex-shrink: 0;
+}
+
+.log-text {
+  color: var(--text-secondary);
+}
+
+/* ── CTA Button ── */
+.dossier-cta {
+  width: 100%;
+  padding: 14px;
+  background: var(--accent);
+  color: #000000;
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  border: none;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all var(--transition);
+}
+
+.dossier-cta:hover:not(:disabled) {
+  background: #00ffaa;
+  box-shadow: 0 0 20px rgba(0, 255, 136, 0.3);
+}
+
+.dossier-cta:disabled {
+  background: var(--border);
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
+
+/* ── Legacy compat (NationPanel.jsx still imports this) ── */
 .nation-panel {
   width: 300px;
   flex-shrink: 0;
-  background: #0d1220;
-  border: 1.5px solid #1a2035;
-  border-radius: 12px;
+  background: var(--bg-panel);
+  border-left: 1px solid var(--border);
   padding: 1.25rem 1rem;
   overflow-y: auto;
   max-height: 580px;
   display: flex;
   flex-direction: column;
-  gap: 0;
 }
 
-/* ── Header ────────────────────────────── */
 .panel-header {
   display: flex;
   align-items: center;
@@ -24,134 +418,75 @@
   font-size: 1.25rem;
   font-weight: 700;
   color: #ffffff;
-  text-transform: capitalize;
 }
 
-.personality-badge {
-  font-size: 0.7rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.07em;
-  border: 1px solid;
-  border-radius: 4px;
-  padding: 2px 8px;
-}
-
-/* ── Section ────────────────────────────── */
 .panel-section {
-  margin-bottom: 1.25rem;
+  margin-bottom: 1rem;
 }
 
 .section-title {
-  font-size: 0.68rem;
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
   text-transform: uppercase;
-  letter-spacing: 0.1em;
-  color: #4b5563;
-  margin-bottom: 0.6rem;
-  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  margin-bottom: 0.5rem;
 }
 
-/* ── Alliances ────────────────────────────── */
-.alliance-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.4rem;
+.no-data {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  color: var(--text-muted);
 }
 
-.alliance-badge {
-  background: #1d3a6e;
-  color: #93c5fd;
-  font-size: 0.78rem;
-  font-weight: 600;
-  padding: 3px 10px;
-  border-radius: 12px;
-}
-
-/* ── Trust bars ────────────────────────────── */
-.trust-list {
-  display: flex;
-  flex-direction: column;
-  gap: 7px;
-}
-
-.trust-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.trust-label {
-  font-size: 0.75rem;
-  color: #9ca3af;
-  width: 60px;
-  flex-shrink: 0;
-}
-
-.trust-bar-bg {
-  flex: 1;
-  height: 6px;
-  background: #1a2035;
-  border-radius: 3px;
-  overflow: hidden;
-}
-
-.trust-bar-fill {
-  height: 100%;
-  border-radius: 3px;
-  transition: width 0.4s ease;
-}
-
-.trust-score {
-  font-size: 0.72rem;
-  font-weight: 600;
-  width: 30px;
-  text-align: right;
-  flex-shrink: 0;
-}
-
-/* ── Events ────────────────────────────── */
 .event-list {
   list-style: none;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
 }
 
 .event-item {
   display: flex;
   align-items: flex-start;
   gap: 6px;
-  font-size: 0.78rem;
+  font-size: 0.72rem;
 }
 
 .event-time {
-  color: #374151;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
   white-space: nowrap;
   flex-shrink: 0;
-  font-size: 0.72rem;
-  padding-top: 1px;
 }
 
 .event-dot {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
   flex-shrink: 0;
   margin-top: 4px;
 }
 
 .event-text {
-  color: #d1d5db;
-  line-height: 1.4;
+  color: var(--text-secondary);
+  line-height: 1.3;
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
 }
 
 .event-other {
-  color: #6b7280;
+  color: var(--text-muted);
 }
 
-/* ── Generic ────────────────────────────── */
-.no-data {
-  color: #374151;
-  font-size: 0.78rem;
-  font-style: italic;
+.personality-badge {
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  border: 1px solid;
+  border-radius: var(--radius);
+  padding: 2px 6px;
 }

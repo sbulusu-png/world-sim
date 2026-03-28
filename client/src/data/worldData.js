@@ -1,6 +1,16 @@
 // Shared world data — mirrors server/data/initial-world.json
 // Imported by MapView, EventArrows, and NationPanel.
 
+// Nation intelligence metadata (leaders, GDP, population)
+export const NATION_META = {
+  france:  { leader: 'EMMANUEL MACRON',          gdp: '$2.9T', population: '67.8M' },
+  germany: { leader: 'FRANK-WALTER STEINMEIER',  gdp: '$3.8T', population: '83.2M' },
+  uk:      { leader: 'CHARLES III',              gdp: '$3.1T', population: '67.7M' },
+  russia:  { leader: 'VLADIMIR PUTIN',           gdp: '$1.9T', population: '144.2M' },
+  poland:  { leader: 'ANDRZEJ DUDA',             gdp: '$0.7T', population: '37.8M' },
+  italy:   { leader: 'SERGIO MATTARELLA',        gdp: '$2.0T', population: '59.0M' },
+}
+
 export const NATIONS = [
   {
     id: 'uk',
